@@ -38,20 +38,23 @@ html,body{
 <div class="grid" id="grid"></div>
 
 <script>
-// -------- SOCKET (FIX HTTPS) --------
+// -------- SOCKET --------
 const protocol = location.protocol === "https:" ? "wss" : "ws"
-const socket = new WebSocket(`${protocol}://${location.host}`)
+const socket = new WebSocket(protocol + "://" + location.host)
+
+socket.onerror = (e)=>console.log("WS error", e)
 
 // -------- AUDIO --------
-let ctx
+let ctx = null
 const buffers = []
-const files = Array.from({length:20}, (_,i)=>`audios/audio${i+1}.mp3`)
+const files = Array.from({length:20}, (_,i)=>"audios/audio"+(i+1)+".mp3")
 
 async function loadBuffers(){
-  for (let f of files){
-    const res = await fetch(f)
+  for (let i=0;i<files.length;i++){
+    const res = await fetch(files[i])
     const arr = await res.arrayBuffer()
-    buffers.push(await ctx.decodeAudioData(arr))
+    const buf = await ctx.decodeAudioData(arr)
+    buffers.push(buf)
   }
 }
 
@@ -59,85 +62,102 @@ async function loadBuffers(){
 let motion={x:0,y:0}
 let rotation={gamma:0}
 
-function smooth(a,b,f=0.2){return a+(b-a)*f}
+function smooth(a,b,f){ return a+(b-a)*(f||0.2) }
 
 function initSensors(){
-  window.addEventListener("devicemotion", e=>{
+  window.addEventListener("devicemotion", function(e){
     if(!e.accelerationIncludingGravity)return
-    motion.x=smooth(motion.x,e.accelerationIncludingGravity.x)
-    motion.y=smooth(motion.y,e.accelerationIncludingGravity.y)
+    motion.x = smooth(motion.x, e.accelerationIncludingGravity.x)
+    motion.y = smooth(motion.y, e.accelerationIncludingGravity.y)
   })
 
-  window.addEventListener("deviceorientation", e=>{
-    rotation.gamma=smooth(rotation.gamma,e.gamma||0)
+  window.addEventListener("deviceorientation", function(e){
+    rotation.gamma = smooth(rotation.gamma, e.gamma || 0)
   })
 }
 
 // -------- FLASH --------
-let track
+let track = null
+
 async function initFlash(){
   try{
-    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}})
-    track=stream.getVideoTracks()[0]
+    const stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}})
+    const tracks = stream.getVideoTracks()
+    if(tracks.length>0){
+      track = tracks[0]
+    }
   }catch(e){
     console.log("flash no disponible")
   }
 }
 
 function flash(on){
-  if(!track)return
-  track.applyConstraints({advanced:[{torch:on}]}).catch(()=>{})
+  if(!track) return
+  try{
+    track.applyConstraints({advanced:[{torch:on}]})
+  }catch(e){}
 }
 
 // -------- PLAY --------
 function trigger(i){
 
-  // 🔥 FEEDBACK VISUAL (FIX)
-  const pad = grid.children[i]
-  pad.classList.add("active")
-  setTimeout(()=>pad.classList.remove("active"),150)
-
-  const src=ctx.createBufferSource()
-  src.buffer=buffers[i]
-
-  const gain=ctx.createGain()
-
-  // grupo 1 (acelerómetro → volumen)
-  if(i<5){
-    const f=Math.abs(motion.x)+Math.abs(motion.y)
-    gain.gain.value=Math.min(f/15,1)
-  }else gain.gain.value=1
-
-  // grupo 4 (giroscopio → velocidad)
-  if(i>=15){
-    const speed=1+rotation.gamma/90
-    src.playbackRate.value=Math.max(0.5,Math.min(speed,2))
+  // UI seguro
+  if(grid.children[i]){
+    const pad = grid.children[i]
+    pad.classList.add("active")
+    setTimeout(function(){
+      pad.classList.remove("active")
+    },150)
   }
 
-  src.connect(gain).connect(ctx.destination)
+  if(!ctx || !buffers[i]) return
+
+  const src = ctx.createBufferSource()
+  src.buffer = buffers[i]
+
+  const gain = ctx.createGain()
+
+  // grupo 1
+  if(i<5){
+    const f = Math.abs(motion.x)+Math.abs(motion.y)
+    gain.gain.value = Math.min(f/15,1)
+  }else{
+    gain.gain.value = 1
+  }
+
+  // grupo 4
+  if(i>=15){
+    const speed = 1 + rotation.gamma/90
+    src.playbackRate.value = Math.max(0.5, Math.min(speed,2))
+  }
+
+  src.connect(gain)
+  gain.connect(ctx.destination)
   src.start()
 
-  // grupo 2 (flash)
+  // grupo 2
   if(i>=5 && i<10){
     flash(true)
-    setTimeout(()=>flash(false),120)
+    setTimeout(function(){ flash(false) },120)
   }
 
-  // grupo 3 (vibración)
+  // grupo 3
   if(i>=10 && i<15){
-    navigator.vibrate?.(80)
+    if(navigator.vibrate){
+      navigator.vibrate(80)
+    }
   }
 }
 
 // -------- UI --------
-const grid=document.getElementById("grid")
+const grid = document.getElementById("grid")
 
 for(let i=0;i<20;i++){
-  const pad=document.createElement("div")
-  pad.className="pad"
-  pad.innerText=i+1
+  const pad = document.createElement("div")
+  pad.className = "pad"
+  pad.innerText = i+1
 
-  pad.addEventListener("pointerdown", ()=>{
+  pad.addEventListener("pointerdown", function(){
     trigger(i)
     socket.send(JSON.stringify({pad:i}))
   })
@@ -145,38 +165,42 @@ for(let i=0;i<20;i++){
   grid.appendChild(pad)
 }
 
-// -------- SOCKET RECEIVE --------
-socket.onmessage=(e)=>{
-  const data=JSON.parse(e.data)
-  trigger(data.pad)
+// -------- RECEIVE --------
+socket.onmessage = function(e){
+  try{
+    const data = JSON.parse(e.data)
+    trigger(data.pad)
+  }catch(err){}
 }
 
-// -------- INIT (FIX CRÍTICO) --------
-document.body.addEventListener("pointerdown", async ()=>{
+// -------- INIT --------
+document.body.addEventListener("pointerdown", async function(){
 
-  // crear contexto SOLO una vez
   if(!ctx){
     ctx = new AudioContext()
-    await ctx.resume() // 🔥 CLAVE
+    await ctx.resume()
 
     await loadBuffers()
 
-    // permisos sensores (iOS / algunos Android)
-    if (typeof DeviceMotionEvent.requestPermission === "function") {
-      try { await DeviceMotionEvent.requestPermission() } catch(e){}
-    }
+    try{
+      if(typeof DeviceMotionEvent !== "undefined" && DeviceMotionEvent.requestPermission){
+        await DeviceMotionEvent.requestPermission()
+      }
+    }catch(e){}
 
-    if (typeof DeviceOrientationEvent.requestPermission === "function") {
-      try { await DeviceOrientationEvent.requestPermission() } catch(e){}
-    }
+    try{
+      if(typeof DeviceOrientationEvent !== "undefined" && DeviceOrientationEvent.requestPermission){
+        await DeviceOrientationEvent.requestPermission()
+      }
+    }catch(e){}
 
     initSensors()
     initFlash()
 
-    console.log("sistema listo")
+    console.log("listo")
   }
 
-}, {once:true})
+},{once:true})
 </script>
 
 </body>
