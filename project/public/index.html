@@ -38,8 +38,9 @@ html,body{
 <div class="grid" id="grid"></div>
 
 <script>
-// -------- SOCKET --------
-const socket = new WebSocket(location.origin.replace("http","ws"))
+// -------- SOCKET (FIX HTTPS) --------
+const protocol = location.protocol === "https:" ? "wss" : "ws"
+const socket = new WebSocket(`${protocol}://${location.host}`)
 
 // -------- AUDIO --------
 let ctx
@@ -66,6 +67,7 @@ function initSensors(){
     motion.x=smooth(motion.x,e.accelerationIncludingGravity.x)
     motion.y=smooth(motion.y,e.accelerationIncludingGravity.y)
   })
+
   window.addEventListener("deviceorientation", e=>{
     rotation.gamma=smooth(rotation.gamma,e.gamma||0)
   })
@@ -77,27 +79,36 @@ async function initFlash(){
   try{
     const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}})
     track=stream.getVideoTracks()[0]
-  }catch(e){}
+  }catch(e){
+    console.log("flash no disponible")
+  }
 }
+
 function flash(on){
   if(!track)return
-  track.applyConstraints({advanced:[{torch:on}]})
+  track.applyConstraints({advanced:[{torch:on}]}).catch(()=>{})
 }
 
 // -------- PLAY --------
 function trigger(i){
+
+  // 🔥 FEEDBACK VISUAL (FIX)
+  const pad = grid.children[i]
+  pad.classList.add("active")
+  setTimeout(()=>pad.classList.remove("active"),150)
+
   const src=ctx.createBufferSource()
   src.buffer=buffers[i]
 
   const gain=ctx.createGain()
 
-  // grupo 1
+  // grupo 1 (acelerómetro → volumen)
   if(i<5){
     const f=Math.abs(motion.x)+Math.abs(motion.y)
     gain.gain.value=Math.min(f/15,1)
   }else gain.gain.value=1
 
-  // grupo 4
+  // grupo 4 (giroscopio → velocidad)
   if(i>=15){
     const speed=1+rotation.gamma/90
     src.playbackRate.value=Math.max(0.5,Math.min(speed,2))
@@ -106,13 +117,13 @@ function trigger(i){
   src.connect(gain).connect(ctx.destination)
   src.start()
 
-  // grupo 2 flash
+  // grupo 2 (flash)
   if(i>=5 && i<10){
     flash(true)
     setTimeout(()=>flash(false),120)
   }
 
-  // grupo 3 vibración
+  // grupo 3 (vibración)
   if(i>=10 && i<15){
     navigator.vibrate?.(80)
   }
@@ -134,18 +145,37 @@ for(let i=0;i<20;i++){
   grid.appendChild(pad)
 }
 
-// recibir eventos
+// -------- SOCKET RECEIVE --------
 socket.onmessage=(e)=>{
   const data=JSON.parse(e.data)
   trigger(data.pad)
 }
 
-// -------- INIT --------
+// -------- INIT (FIX CRÍTICO) --------
 document.body.addEventListener("pointerdown", async ()=>{
-  ctx=new AudioContext()
-  await loadBuffers()
-  initSensors()
-  initFlash()
+
+  // crear contexto SOLO una vez
+  if(!ctx){
+    ctx = new AudioContext()
+    await ctx.resume() // 🔥 CLAVE
+
+    await loadBuffers()
+
+    // permisos sensores (iOS / algunos Android)
+    if (typeof DeviceMotionEvent.requestPermission === "function") {
+      try { await DeviceMotionEvent.requestPermission() } catch(e){}
+    }
+
+    if (typeof DeviceOrientationEvent.requestPermission === "function") {
+      try { await DeviceOrientationEvent.requestPermission() } catch(e){}
+    }
+
+    initSensors()
+    initFlash()
+
+    console.log("sistema listo")
+  }
+
 }, {once:true})
 </script>
 
