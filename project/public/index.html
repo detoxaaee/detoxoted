@@ -1,153 +1,310 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Network Pads</title>
-
-<style>
-html,body{
-  margin:0;
-  background:#000;
-  overflow:hidden;
-  touch-action:none;
-}
-.grid{
-  width:100vw;
-  height:100vh;
-  display:grid;
-  grid-template-columns:repeat(5,1fr);
-  grid-template-rows:repeat(4,1fr);
-  gap:6px;
-}
-.pad{
-  background:#111;
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  color:#555;
-}
-.pad.active{
-  background:#00ff88;
-  color:#000;
-}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Pads Pd</title>
+  <style>
+    html, body { margin:0; padding:0; background:#000; overflow:hidden; touch-action:none; }
+    .wrapper { width:100vw; height:100vh; display:grid; place-items:center; }
+    .grid {
+      width:95vw; height:95vh;
+      display:grid;
+      grid-template-columns:repeat(5,1fr);
+      grid-template-rows:repeat(4,1fr);
+      gap:8px;
+    }
+    .pad {
+      background:#111; border-radius:10px;
+      display:flex; align-items:center; justify-content:center;
+      color:#555; font-size:14px; font-family:sans-serif;
+      user-select:none; cursor:pointer;
+    }
+    .pad.active { background:#00ff88; color:#000; }
+    #status {
+      position:fixed; top:8px; left:50%; transform:translateX(-50%);
+      color:#555; font-size:11px; font-family:sans-serif; z-index:10;
+    }
+  </style>
 </head>
-
 <body>
-<div class="grid" id="grid"></div>
 
-<script>
-// -------- SOCKET --------
-const socket = new WebSocket(location.origin.replace("http","ws"))
+<div id="status">toca para iniciar</div>
+<div class="wrapper"><div class="grid" id="grid"></div></div>
 
-// -------- AUDIO --------
-let ctx
-const buffers = []
-const files = Array.from({length:20}, (_,i)=>`audios/audio${i+1}.mp3`)
+<script type="module">
 
-async function loadBuffers(){
-  for (let f of files){
-    const res = await fetch(f)
-    const arr = await res.arrayBuffer()
-    buffers.push(await ctx.decodeAudioData(arr))
+import { createPd } from "./libpd-wasm.js"
+
+// ================================================================
+// CONFIGURACIÓN
+// Cambiar WS_URL por la URL de tu servidor Railway en producción.
+// En desarrollo local usa el servidor Railway igual.
+// ================================================================
+const WS_URL = "wss://detoxoted-production.up.railway.app"
+
+// ================================================================
+// ESTADO GLOBAL
+// ================================================================
+let pd      = null
+let pdReady = false
+let ws      = null
+
+// valores de sensores del dispositivo LOCAL
+// se actualizan continuamente con devicemotion/deviceorientation
+let motion   = { x: 0, y: 0 }
+let rotation = { gamma: 0 }
+
+const statusEl = document.getElementById("status")
+function setStatus(t) { statusEl.textContent = t }
+function smooth(a, b, f=0.15) { return a + (b-a)*f }
+
+// ================================================================
+// API DE PD
+// ================================================================
+function pdFloat(receiver, value) { pd?.sendFloat(receiver, value) }
+function pdList(receiver, values) { pd?.sendList(receiver, values) }
+
+// ================================================================
+// WEBSOCKET
+// Conecta al servidor Railway que reenvía mensajes a todos
+// los dispositivos conectados.
+// ================================================================
+function initWebSocket() {
+  ws = new WebSocket(WS_URL)
+
+  ws.onopen = () => {
+    console.log("WS conectado")
+    setStatus("✓")
+  }
+
+  ws.onclose = () => {
+    console.log("WS desconectado, reconectando...")
+    setTimeout(initWebSocket, 2000)
+  }
+
+  ws.onerror = (e) => console.warn("WS error:", e)
+
+  // recibir eventos de OTROS dispositivos
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data)
+    if (msg.type === "pad") {
+      // ejecutar la acción localmente con los sensores
+      // del dispositivo que tocó el pad
+      executePad(msg.pad, msg.motionX, msg.motionY, msg.gyro)
+    }
   }
 }
 
-// -------- SENSORES --------
-let motion={x:0,y:0}
-let rotation={gamma:0}
-
-function smooth(a,b,f=0.2){return a+(b-a)*f}
-
-function initSensors(){
-  window.addEventListener("devicemotion", e=>{
-    if(!e.accelerationIncludingGravity)return
-    motion.x=smooth(motion.x,e.accelerationIncludingGravity.x)
-    motion.y=smooth(motion.y,e.accelerationIncludingGravity.y)
+// ================================================================
+// SENSORES → PD
+// Loop continuo que alimenta el patch con los sensores locales.
+// Los sensores se mandan a Pd constantemente para que el patch
+// pueda usarlos en tiempo real.
+// ================================================================
+function initSensors() {
+  window.addEventListener("devicemotion", e => {
+    if (!e.accelerationIncludingGravity) return
+    motion.x = smooth(motion.x, e.accelerationIncludingGravity.x)
+    motion.y = smooth(motion.y, e.accelerationIncludingGravity.y)
   })
-  window.addEventListener("deviceorientation", e=>{
-    rotation.gamma=smooth(rotation.gamma,e.gamma||0)
+  window.addEventListener("deviceorientation", e => {
+    rotation.gamma = smooth(rotation.gamma, e.gamma || 0)
   })
 }
 
-// -------- FLASH --------
-let track
-async function initFlash(){
-  try{
-    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}})
-    track=stream.getVideoTracks()[0]
-  }catch(e){}
-}
-function flash(on){
-  if(!track)return
-  track.applyConstraints({advanced:[{torch:on}]})
-}
-
-// -------- PLAY --------
-function trigger(i){
-  const src=ctx.createBufferSource()
-  src.buffer=buffers[i]
-
-  const gain=ctx.createGain()
-
-  // grupo 1
-  if(i<5){
-    const f=Math.abs(motion.x)+Math.abs(motion.y)
-    gain.gain.value=Math.min(f/15,1)
-  }else gain.gain.value=1
-
-  // grupo 4
-  if(i>=15){
-    const speed=1+rotation.gamma/90
-    src.playbackRate.value=Math.max(0.5,Math.min(speed,2))
+function sensorLoop() {
+  if (pdReady) {
+    pdFloat("motionX", motion.x)
+    pdFloat("motionY", motion.y)
+    pdFloat("gyro",    rotation.gamma)
   }
+  requestAnimationFrame(sensorLoop)
+}
 
-  src.connect(gain).connect(ctx.destination)
-  src.start()
+// ================================================================
+// PERMISOS iOS
+// ================================================================
+async function requestPermissions() {
+  try {
+    if (typeof DeviceMotionEvent?.requestPermission === "function") {
+      await DeviceMotionEvent.requestPermission()
+      await DeviceOrientationEvent.requestPermission()
+    }
+  } catch(e) { console.warn("permisos:", e) }
+}
 
-  // grupo 2 flash
-  if(i>=5 && i<10){
+// ================================================================
+// FLASH
+// ================================================================
+let cameraTrack = null
+async function initFlash() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video:{facingMode:"environment"} })
+    cameraTrack = stream.getVideoTracks()[0]
+  } catch(e) {}
+}
+function flash(on) {
+  cameraTrack?.applyConstraints({ advanced:[{torch:on}] }).catch(()=>{})
+}
+
+// ================================================================
+// EJECUTAR PAD
+// Esta función se llama tanto cuando el dispositivo LOCAL toca
+// un pad como cuando recibe el evento de OTRO dispositivo.
+//
+// Recibe los valores de sensores del dispositivo que originó
+// el evento — así todos los dispositivos reaccionan con los
+// mismos parámetros de audio pero cada uno con su propio
+// flash/vibración local.
+//
+// Mapeo:
+//   Pads  1-5  → amplitud controlada por motionY (en el patch)
+//   Pads  6-10 → flash en TODOS los dispositivos
+//   Pads 11-15 → vibración en TODOS los dispositivos
+//   Pads 16-20 → velocidad de reproducción por motionX (en el patch)
+// ================================================================
+function executePad(index, mx, my, gy) {
+  if (!pdReady) return
+
+  // mandar valores de sensores al patch ANTES del trigger
+  // así el patch ya tiene los valores cuando procesa el pad
+  pdFloat("motionX", mx)
+  pdFloat("motionY", my)
+  pdFloat("gyro",    gy)
+
+  // disparar el pad en Pd
+  // [r pad] → [unpack f f] en el patch
+  pdList("pad", [index, index + 1])
+
+  // flash — grupo 2 (pads 5-9, índice base 0)
+  if (index >= 5 && index < 10) {
     flash(true)
-    setTimeout(()=>flash(false),120)
+    setTimeout(() => flash(false), 120)
   }
 
-  // grupo 3 vibración
-  if(i>=10 && i<15){
+  // vibración — grupo 3 (pads 10-14, índice base 0)
+  if (index >= 10 && index < 15) {
     navigator.vibrate?.(80)
   }
+
+  // feedback visual
+  const pads = document.querySelectorAll(".pad")
+  pads[index]?.classList.add("active")
+  setTimeout(() => pads[index]?.classList.remove("active"), 80)
 }
 
-// -------- UI --------
-const grid=document.getElementById("grid")
+// ================================================================
+// TOCAR UN PAD (acción local)
+// Ejecuta el pad localmente Y lo broadcast a todos los demás
+// dispositivos via WebSocket, incluyendo los valores de sensores
+// del momento exacto del toque.
+// ================================================================
+function playPad(index) {
+  // ejecutar localmente con sensores locales
+  executePad(index, motion.x, motion.y, rotation.gamma)
 
-for(let i=0;i<20;i++){
-  const pad=document.createElement("div")
-  pad.className="pad"
-  pad.innerText=i+1
+  // broadcast a todos los otros dispositivos
+  if (ws?.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({
+      type:    "pad",
+      pad:     index,
+      motionX: motion.x,
+      motionY: motion.y,
+      gyro:    rotation.gamma
+    }))
+  }
+}
 
-  pad.addEventListener("pointerdown", ()=>{
-    trigger(i)
-    socket.send(JSON.stringify({pad:i}))
+// ================================================================
+// INICIALIZAR PD
+// ================================================================
+async function initPd() {
+  setStatus("cargando patch...")
+
+  const [patchText, samplerText] = await Promise.all([
+    fetch("patch.pd").then(r => r.text()),
+    fetch("sampler.pd").then(r => r.text())
+  ])
+
+  pd = await createPd({
+    packages: ["vanilla", "cyclone"],
+    files: { "sampler.pd": samplerText, "patch.pd": patchText },
+    entry: "patch.pd",
+    onPrint: (text) => console.log("[Pd]", text),
+    onError: (err)  => console.error("[Pd error]", err.message)
   })
 
+  window._pd = pd
+
+  // cargar audios
+  setStatus("cargando audios...")
+  const filesList = []
+  for (let i = 1; i <= 20; i++) {
+    const res = await fetch(`${i}.aiff`)
+    if (res.ok) {
+      filesList.push({ path: `${i}.aiff`, content: new Uint8Array(await res.arrayBuffer()) })
+    } else {
+      console.warn(`no encontró ${i}.aiff`)
+    }
+  }
+  console.log(`audios listos: ${filesList.length}`)
+
+  // escribir audios en el FS virtual del worklet
+  const originalOnMessage = pd.node.port.onmessage
+  await new Promise((resolve) => {
+    pd.node.port.onmessage = (e) => {
+      if (e.data?.type === "files-written") {
+        pd.node.port.onmessage = originalOnMessage
+        console.log("audios en FS ✓")
+        resolve()
+      } else if (e.data?.type === "error") {
+        console.error("worklet error:", e.data.message)
+        pd.node.port.onmessage = originalOnMessage
+        resolve()
+      } else {
+        originalOnMessage?.call(pd.node.port, e)
+      }
+    }
+    pd.node.port.postMessage({ type: "write-files", files: filesList })
+  })
+
+  // disparar loadbang — cada sampler carga su .aiff
+  pd.sendBang("loadbang")
+  console.log("loadbang disparado ✓")
+
+  pd.node.connect(pd.audioContext.destination)
+  pdReady = true
+  setStatus("conectando...")
+  sensorLoop()
+
+  // conectar WebSocket después de que Pd está listo
+  initWebSocket()
+}
+
+// ================================================================
+// GRILLA DE PADS
+// ================================================================
+const grid = document.getElementById("grid")
+for (let i = 0; i < 20; i++) {
+  const pad = document.createElement("div")
+  pad.className = "pad"
+  pad.textContent = i + 1
+  pad.addEventListener("pointerdown", () => playPad(i))
   grid.appendChild(pad)
 }
 
-// recibir eventos
-socket.onmessage=(e)=>{
-  const data=JSON.parse(e.data)
-  trigger(data.pad)
-}
-
-// -------- INIT --------
-document.body.addEventListener("pointerdown", async ()=>{
-  ctx=new AudioContext()
-  await loadBuffers()
+// ================================================================
+// ARRANQUE
+// ================================================================
+document.body.addEventListener("pointerdown", async () => {
+  setStatus("iniciando...")
+  await requestPermissions()
   initSensors()
-  initFlash()
-}, {once:true})
-</script>
+  await initFlash()
+  await initPd()
+}, { once: true })
 
+</script>
 </body>
 </html>
