@@ -1,25 +1,34 @@
-const express = require("express")
-const http = require("http")
-const WebSocket = require("ws")
+const express = require('express');
+const http = require('http');
+const WebSocket = require('ws');
+const path = require('path');
 
-const app = express()
-const server = http.createServer(app)
-const wss = new WebSocket.Server({ server })
+const app = express();
+const server = http.createServer(app);
 
-// servir frontend
-app.use(express.static("public"))
+// Creamos el servidor de WebSockets acoplado a Express
+const wss = new WebSocket.Server({ server });
 
-// websocket
-wss.on("connection", (ws) => {
-  ws.on("message", (msg) => {
-    // reenviar a todos menos al que envió
-    wss.clients.forEach(client => {
-      if (client !== ws && client.readyState === WebSocket.OPEN) {
-        client.send(msg.toString())
-      }
-    })
-  })
-})
+// Servir todos los archivos de tu proyecto (HTML, JS, parches .pd)
+app.use(express.static(__dirname));
 
-const PORT = process.env.PORT || 3000
-server.listen(PORT, () => console.log("Server running on", PORT))
+// Lógica de comunicación entre dispositivos
+wss.on('connection', (ws) => {
+    console.log('¡Un dispositivo se ha conectado por WebSocket!');
+
+    // Cuando un teléfono envía datos de sus sensores:
+    ws.on('message', (message) => {
+        // Retransmitir el mensaje a TODOS los demás dispositivos conectados
+        wss.clients.forEach((client) => {
+            if (client !== ws && client.readyState === WebSocket.OPEN) {
+                client.send(message); 
+            }
+        });
+    });
+});
+
+// Render asigna el puerto automáticamente mediante process.env.PORT
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+    console.log(`Servidor corriendo en el puerto ${PORT}`);
+});
