@@ -37,11 +37,11 @@
 import { createPd } from "./libpd-wasm.js"
 
 // ================================================================
-// CONFIGURACIÓN
-// Cambiar WS_URL por la URL de tu servidor Railway en producción.
-// En desarrollo local usa el servidor Railway igual.
+// CONFIGURACIÓN DINÁMICA
+// Detecta automáticamente el host actual (Sirve para Render y Local)
 // ================================================================
-const WS_URL = "wss://detoxoted-production.up.railway.app"
+const protocol = window.location.protocol === "https:" ? "wss://" : "ws://";
+const WS_URL = protocol + window.location.host;
 
 // ================================================================
 // ESTADO GLOBAL
@@ -67,7 +67,7 @@ function pdList(receiver, values) { pd?.sendList(receiver, values) }
 
 // ================================================================
 // WEBSOCKET
-// Conecta al servidor Railway que reenvía mensajes a todos
+// Conecta al servidor que reenvía mensajes a todos
 // los dispositivos conectados.
 // ================================================================
 function initWebSocket() {
@@ -99,8 +99,6 @@ function initWebSocket() {
 // ================================================================
 // SENSORES → PD
 // Loop continuo que alimenta el patch con los sensores locales.
-// Los sensores se mandan a Pd constantemente para que el patch
-// pueda usarlos en tiempo real.
 // ================================================================
 function initSensors() {
   window.addEventListener("devicemotion", e => {
@@ -152,29 +150,16 @@ function flash(on) {
 // EJECUTAR PAD
 // Esta función se llama tanto cuando el dispositivo LOCAL toca
 // un pad como cuando recibe el evento de OTRO dispositivo.
-//
-// Recibe los valores de sensores del dispositivo que originó
-// el evento — así todos los dispositivos reaccionan con los
-// mismos parámetros de audio pero cada uno con su propio
-// flash/vibración local.
-//
-// Mapeo:
-//   Pads  1-5  → amplitud controlada por motionY (en el patch)
-//   Pads  6-10 → flash en TODOS los dispositivos
-//   Pads 11-15 → vibración en TODOS los dispositivos
-//   Pads 16-20 → velocidad de reproducción por motionX (en el patch)
 // ================================================================
 function executePad(index, mx, my, gy) {
   if (!pdReady) return
 
   // mandar valores de sensores al patch ANTES del trigger
-  // así el patch ya tiene los valores cuando procesa el pad
   pdFloat("motionX", mx)
   pdFloat("motionY", my)
   pdFloat("gyro",    gy)
 
   // disparar el pad en Pd
-  // [r pad] → [unpack f f] en el patch
   pdList("pad", [index, index + 1])
 
   // flash — grupo 2 (pads 5-9, índice base 0)
@@ -196,9 +181,6 @@ function executePad(index, mx, my, gy) {
 
 // ================================================================
 // TOCAR UN PAD (acción local)
-// Ejecuta el pad localmente Y lo broadcast a todos los demás
-// dispositivos via WebSocket, incluyendo los valores de sensores
-// del momento exacto del toque.
 // ================================================================
 function playPad(index) {
   // ejecutar localmente con sensores locales
@@ -222,6 +204,8 @@ function playPad(index) {
 async function initPd() {
   setStatus("cargando patch...")
 
+  // NOTA: Asegúrate de que los archivos se llamen patch.pd y sampler.pd en tu GitHub.
+  // Si se llaman demo.pd y audioplayer.pd, cambia los nombres en las siguientes líneas:
   const [patchText, samplerText] = await Promise.all([
     fetch("patch.pd").then(r => r.text()),
     fetch("sampler.pd").then(r => r.text())
@@ -237,7 +221,7 @@ async function initPd() {
 
   window._pd = pd
 
-  // cargar audios
+  // cargar audios (.aiff)
   setStatus("cargando audios...")
   const filesList = []
   for (let i = 1; i <= 20; i++) {
