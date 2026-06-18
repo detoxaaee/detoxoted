@@ -215,26 +215,28 @@ function executePad(index, mx, my, gy) {
 }
 
 // =======================================================
-// SISTEMA ANTI-SPAM (COOLDOWN) PARA PROTEGER EL SERVIDOR
+// SISTEMA ANTI-SPAM (COOLDOWN GLOBAL)
+// Bloquea TODA la pantalla tras tocar cualquier pad
 // =======================================================
-// Creamos una lista de 20 ceros. Cada uno guardará la hora exacta en que se tocó su pad respectivo.
-const cooldowns = new Array(20).fill(0); 
-const COOLDOWN_MS = 5000; // Tiempo mínimo entre toques en un mismo botón (120 milisegundos)
+let ultimoToque = 0; // Un solo reloj maestro para toda la aplicación
+const COOLDOWN_MS = 5000; // Tiempo de bloqueo global (5000 milisegundos = 5 segundos)
 
-// Se activa CUANDO EL USUARIO TOCA LA PANTALLA
+// Se activa CUANDO EL USUARIO TOCA CUALQUIER PAD
 function playPad(index) {
   const ahora = Date.now(); // Miramos la hora actual
   
-  // Si la diferencia de tiempo desde el último toque a este botón es menor a 120ms...
-  if (ahora - cooldowns[index] < COOLDOWN_MS) {
-    console.log(`Pad ${index + 1} recargando para no saturar.`);
-    return; // Cancelamos el toque, no hacemos nada.
+  // Si el tiempo transcurrido desde el ÚLTIMO toque general es menor al cooldown...
+  if (ahora - ultimoToque < COOLDOWN_MS) {
+    // Calculamos cuánto tiempo falta para liberar la pantalla (solo para verlo en consola)
+    const tiempoFaltante = COOLDOWN_MS - (ahora - ultimoToque);
+    console.log(`Pantalla bloqueada. Intento ignorado. Faltan ${tiempoFaltante}ms`);
+    return; // Cancelamos el toque, no pasa nada y no se envía nada al servidor.
   }
   
-  // Guardamos la nueva hora de toque
-  cooldowns[index] = ahora;
+  // Si el tiempo ya pasó, actualizamos el reloj maestro con la hora actual
+  ultimoToque = ahora;
 
-  // Ejecutamos el sonido localmente
+  // Ejecutamos el sonido y las luces localmente
   executePad(index, motion.x, motion.y, rotation.gamma);
   
   // Enviamos la señal al servidor Render para que los demás celulares también suenen
