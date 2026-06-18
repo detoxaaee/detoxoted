@@ -4,24 +4,34 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>detox</title>
+  
   <style>
+    /* RESET BÁSICO: Fondo negro, sin márgenes, quita el comportamiento de arrastrar la pantalla en móviles */
     html, body { margin:0; padding:0; background:#000; overflow:hidden; touch-action:none; }
+    
+    /* Contenedor principal que centra todo en la pantalla */
     .wrapper { width:100vw; height:100vh; display:grid; place-items:center; }
+    
+    /* LA GRILLA: 5 columnas x 4 filas donde irán los 20 pads */
     .grid {
       width:95vw; height:70vh;
       display:grid;
       grid-template-columns:repeat(5,1fr);
       grid-template-rows:repeat(4,1fr);
-      gap:8px;
+      gap:8px; /* Espacio entre los botones */
     }
+    
+    /* DISEÑO DE LOS PADS: Cuadrados grises oscuros, texto centrado */
     .pad {
       background:#111; border-radius:10px;
       display:flex; align-items:center; justify-content:center;
       color:#555; font-size:14px; font-family:sans-serif;
       user-select:none; cursor:pointer;
     }
+    /* Clase que se añade temporalmente cuando se toca un pad para que brille en verde */
     .pad.active { background:#00ff88; color:#000; }
 
+    /* TEXTO DE ESTADO: Muestra "iniciando...", "cargando...", etc. */
     #status {
       position: fixed;
       top: 15px; left: 50%;
@@ -31,6 +41,7 @@
       z-index: 200;
     }
 
+    /* PANTALLA DE CARGA (GIF): Tapa todo hasta que Pure Data y los audios estén listos */
     #loader {
       position: fixed;
       top: 0; left: 0;
@@ -40,83 +51,118 @@
       align-items: center;
       justify-content: center;
       z-index: 100;
-      transition: opacity 0.4s ease;
+      transition: opacity 0.4s ease; /* Efecto de difuminado al desaparecer */
     }
+    /* Clase para ocultar el loader suavemente */
     #loader.hidden {
       opacity: 0;
       pointer-events: none;
     }
     #loader img {
-      width: 80vmin;
+      width: 80vmin; /* Tamaño adaptable del gif */
     }
   </style>
 </head>
 <body>
 
 <div id="status">toca para iniciar</div>
+
 <div id="loader">
   <img src="loading.gif" alt="cargando...">
 </div>
+
 <div class="wrapper"><div class="grid" id="grid"></div></div>
 
 <script type="module">
 
+// Importamos el motor de Pure Data en formato WebAssembly
 import { createPd } from "./libpd-wasm.js"
 
+// Detectamos si estamos en local (ws://) o en un servidor seguro como Render (wss://)
 const protocol = window.location.protocol === "https:" ? "wss://" : "ws://"
 const WS_URL = protocol + window.location.host
 
-let pd      = null
-let pdReady = false
-let ws      = null
-let motion   = { x: 0, y: 0 }
-let rotation = { gamma: 0 }
+// VARIABLES GLOBALES
+let pd      = null;  // Guardará el motor de audio
+let pdReady = false; // Nos avisa si Pure Data ya cargó por completo
+let ws      = null;  // Guardará la conexión al servidor (Render)
 
-const statusEl = document.getElementById("status")
-const loaderEl = document.getElementById("loader")
+// Variables para guardar los datos de movimiento del teléfono
+let motion   = { x: 0, y: 0 }; 
+let rotation = { gamma: 0 };
 
+// Referencias a elementos visuales del HTML
+const statusEl = document.getElementById("status");
+const loaderEl = document.getElementById("loader");
+
+// FUNCIONES DE UTILIDAD VISUAL
+// Cambia el texto superior
 function setStatus(t) { statusEl.textContent = t }
+
+// Suaviza los datos de los sensores para que el audio no pegue saltos bruscos
 function smooth(a, b, f=0.15) { return a + (b-a)*f }
 
+// Oculta el gif de carga cuando todo está listo
 function hideLoader() {
   loaderEl.classList.add("hidden")
   setTimeout(() => loaderEl.style.display = "none", 400)
 }
 
+// FUNCIONES PARA HABLAR CON PURE DATA
+// Envía un número suelto (ej. sensores)
 function pdFloat(receiver, value) { pd?.sendFloat(receiver, value) }
+// Envía una lista (ej. qué pad se tocó)
 function pdList(receiver, values) { pd?.sendList(receiver, values) }
 
+// =======================================================
+// CONEXIÓN MULTIJUGADOR (WEBSOCKETS)
+// =======================================================
 function initWebSocket() {
-  ws = new WebSocket(WS_URL)
+  ws = new WebSocket(WS_URL); // Nos conectamos al servidor
+  
   ws.onopen  = () => { console.log("WS conectado"); setStatus("✓") }
+  
+  // Si se cae el internet, intenta reconectar a los 2 segundos
   ws.onclose = () => { console.log("WS desconectado, reconectando..."); setTimeout(initWebSocket, 2000) }
   ws.onerror = (e) => console.warn("WS error:", e)
+  
+  // CUANDO RECIBIMOS UN MENSAJE DE OTRO CELULAR...
   ws.onmessage = (e) => {
-    const msg = JSON.parse(e.data)
-    if (msg.type === "pad") executePad(msg.pad, msg.motionX, msg.motionY, msg.gyro)
+    const msg = JSON.parse(e.data); // Traducimos el texto a datos usables
+    if (msg.type === "pad") {
+      // Disparamos el pad usando los datos de movimiento del otro celular
+      executePad(msg.pad, msg.motionX, msg.motionY, msg.gyro);
+    }
   }
 }
 
+// =======================================================
+// SENSORES DE MOVIMIENTO
+// =======================================================
 function initSensors() {
+  // Acelerómetro (sacudidas)
   window.addEventListener("devicemotion", e => {
     if (!e.accelerationIncludingGravity) return
     motion.x = smooth(motion.x, e.accelerationIncludingGravity.x)
     motion.y = smooth(motion.y, e.accelerationIncludingGravity.y)
   })
+  // Giroscopio (inclinación)
   window.addEventListener("deviceorientation", e => {
     rotation.gamma = smooth(rotation.gamma, e.gamma || 0)
   })
 }
 
+// Bucle infinito que le envía constantemente los datos de sensores a Pure Data (60 veces por segundo)
 function sensorLoop() {
   if (pdReady) {
     pdFloat("motionX", motion.x)
     pdFloat("motionY", motion.y)
     pdFloat("gyro",    rotation.gamma)
   }
-  requestAnimationFrame(sensorLoop)
+  requestAnimationFrame(sensorLoop) // Vuelve a llamar a la función en el siguiente cuadro
 }
 
+// Pide permiso en dispositivos iOS (iPhone/iPad bloquean los sensores por defecto)
 async function requestPermissions() {
   try {
     if (typeof DeviceMotionEvent?.requestPermission === "function") {
@@ -126,63 +172,113 @@ async function requestPermissions() {
   } catch(e) { console.warn("permisos:", e) }
 }
 
+// =======================================================
+// HARDWARE EXTERNO (FLASH Y VIBRACIÓN)
+// =======================================================
 let cameraTrack = null
+// Pide permiso para usar la cámara trasera (solo la usamos para el flash)
 async function initFlash() {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ video:{facingMode:"environment"} })
     cameraTrack = stream.getVideoTracks()[0]
   } catch(e) {}
 }
+
+// Prende o apaga el flash (linterna)
 function flash(on) {
   cameraTrack?.applyConstraints({ advanced:[{torch:on}] }).catch(()=>{})
 }
 
+// =======================================================
+// ACCIÓN PRINCIPAL DEL INSTRUMENTO
+// =======================================================
+// Esta función procesa la ejecución gráfica y sonora local (tanto propia como recibida por red)
 function executePad(index, mx, my, gy) {
-  if (!pdReady) return
+  if (!pdReady) return; // Si PD no cargó, ignoramos
+
+  // 1. Mandamos sensores a Pd
   pdFloat("motionX", mx)
   pdFloat("motionY", my)
   pdFloat("gyro",    gy)
+  
+  // 2. Disparamos el sonido
   pdList("pad", [index, index + 1])
+  
+  // 3. Efectos de Hardware (Flash en todos los pads, vibración del pad 2 al 20)
   if (index >= 0  && index < 20) { flash(true); setTimeout(() => flash(false), 120) }
   if (index >= 1 && index < 20) { navigator.vibrate?.(80) }
+  
+  // 4. Efecto Visual: Iluminar el botón tocado en verde
   const pads = document.querySelectorAll(".pad")
   pads[index]?.classList.add("active")
   setTimeout(() => pads[index]?.classList.remove("active"), 80)
 }
 
+// =======================================================
+// SISTEMA ANTI-SPAM (COOLDOWN) PARA PROTEGER EL SERVIDOR
+// =======================================================
+// Creamos una lista de 20 ceros. Cada uno guardará la hora exacta en que se tocó su pad respectivo.
+const cooldowns = new Array(20).fill(0); 
+const COOLDOWN_MS = 5000; // Tiempo mínimo entre toques en un mismo botón (120 milisegundos)
+
+// Se activa CUANDO EL USUARIO TOCA LA PANTALLA
 function playPad(index) {
-  executePad(index, motion.x, motion.y, rotation.gamma)
+  const ahora = Date.now(); // Miramos la hora actual
+  
+  // Si la diferencia de tiempo desde el último toque a este botón es menor a 120ms...
+  if (ahora - cooldowns[index] < COOLDOWN_MS) {
+    console.log(`Pad ${index + 1} recargando para no saturar.`);
+    return; // Cancelamos el toque, no hacemos nada.
+  }
+  
+  // Guardamos la nueva hora de toque
+  cooldowns[index] = ahora;
+
+  // Ejecutamos el sonido localmente
+  executePad(index, motion.x, motion.y, rotation.gamma);
+  
+  // Enviamos la señal al servidor Render para que los demás celulares también suenen
   if (ws?.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({
       type: "pad", pad: index,
       motionX: motion.x, motionY: motion.y, gyro: rotation.gamma
-    }))
+    }));
   }
 }
 
+// =======================================================
+// ARRANQUE DEL MOTOR PURE DATA
+// =======================================================
 async function initPd() {
   setStatus("cargando patch...")
 
+  // Descargamos tus parches
   const [patchText, samplerText] = await Promise.all([
     fetch("patch.pd").then(r => r.text()),
     fetch("sampler.pd").then(r => r.text())
   ])
 
+  // Inicializamos la librería con tus parches
   pd = await createPd({
-    packages: ["vanilla"],
+    packages: ["vanilla"], // "cyclone" removido en esta versión para mayor velocidad
     files: { "sampler.pd": samplerText, "patch.pd": patchText },
     entry: "patch.pd",
     onPrint: (text) => console.log("[Pd]", text),
     onError: (err)  => console.error("[Pd error]", err.message)
   })
 
+  // Hacemos que Pd sea global para poder llamarlo desde otras partes
   window._pd = pd
 
+  // Proceso de carga de los audios (.aiff)
   setStatus("cargando audios...")
   const filesList = []
+  
+  // Bucle del 1 al 20 para descargar los audios
   for (let i = 1; i <= 20; i++) {
     const res = await fetch(`${i}.aiff`)
     if (res.ok) {
+      // Si existe, lo convertimos a datos binarios que Pure Data pueda entender
       filesList.push({ path: `${i}.aiff`, content: new Uint8Array(await res.arrayBuffer()) })
     } else {
       console.warn(`no encontró ${i}.aiff`)
@@ -190,6 +286,7 @@ async function initPd() {
   }
   console.log(`audios listos: ${filesList.length}`)
 
+  // Este bloque inyecta los audios en el "disco duro virtual" que usa Pure Data en el navegador
   const originalOnMessage = pd.node.port.onmessage
   await new Promise((resolve) => {
     pd.node.port.onmessage = (e) => {
@@ -205,38 +302,53 @@ async function initPd() {
         originalOnMessage?.call(pd.node.port, e)
       }
     }
+    // Comando para escribir los archivos
     pd.node.port.postMessage({ type: "write-files", files: filesList })
   })
 
+  // ¡Magia! Le decimos a Pure Data que arranque
   pd.sendBang("loadbang")
   console.log("loadbang disparado ✓")
 
+  // Conectamos la salida de Pure Data a los parlantes del celular
   pd.node.connect(pd.audioContext.destination)
   pdReady = true
 
+  // Ocultamos la pantalla de carga y mostramos el tilde
   hideLoader()
   setStatus("✓")
 
+  // Encendemos los sensores y la red
   sensorLoop()
   initWebSocket()
 }
 
+// =======================================================
+// CONSTRUCCIÓN DE LA INTERFAZ VISUAL
+// =======================================================
 const grid = document.getElementById("grid")
+// Creamos 20 botones (divs) y los metemos en la pantalla
 for (let i = 0; i < 20; i++) {
   const pad = document.createElement("div")
   pad.className = "pad"
   pad.textContent = i + 1
+  // Le agregamos la acción de escuchar cuando alguien lo presiona
   pad.addEventListener("pointerdown", () => playPad(i))
   grid.appendChild(pad)
 }
 
+// =======================================================
+// BOTÓN DE ENCENDIDO PRINCIPAL
+// =======================================================
+// Los navegadores obligan a que el usuario interactúe con la pantalla antes de emitir sonido.
+// Por eso esperamos un primer toque en la pantalla negra para arrancar toda la maquinaria.
 document.body.addEventListener("pointerdown", async () => {
   setStatus("iniciando...")
-  await requestPermissions()
-  initSensors()
-  await initFlash()
-  await initPd()
-}, { once: true })
+  await requestPermissions() // Permisos iOS
+  initSensors()              // Acelerómetro
+  await initFlash()          // Cámara
+  await initPd()             // Pure Data + Audios
+}, { once: true }) // El { once: true } asegura que esto se ejecute una sola vez en la vida útil de la página.
 
 </script>
 </body>
