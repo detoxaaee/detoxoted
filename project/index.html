@@ -21,85 +21,82 @@
       user-select:none; cursor:pointer;
     }
     .pad.active { background:#00ff88; color:#000; }
+
     #status {
-      position:fixed; top:8px; left:50%; transform:translateX(-50%);
-      color:#555; font-size:11px; font-family:sans-serif; z-index:10;
+      position: fixed;
+      top: 15px; left: 50%;
+      transform: translateX(-50%);
+      color: #555; font-size: 20px;
+      font-family: sans-serif;
+      z-index: 200;
+    }
+
+    #loader {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      transition: opacity 0.4s ease;
+    }
+    #loader.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    #loader img {
+      width: 80vmin;
     }
   </style>
 </head>
 <body>
 
 <div id="status">toca para iniciar</div>
+<div id="loader">
+  <img src="loading.gif" alt="cargando...">
+</div>
 <div class="wrapper"><div class="grid" id="grid"></div></div>
 
 <script type="module">
 
 import { createPd } from "./libpd-wasm.js"
 
-// ================================================================
-// CONFIGURACIÓN DINÁMICA
-// Detecta automáticamente el host actual (Sirve para Render y Local)
-// ================================================================
-const protocol = window.location.protocol === "https:" ? "wss://" : "ws://";
-const WS_URL = protocol + window.location.host;
+const protocol = window.location.protocol === "https:" ? "wss://" : "ws://"
+const WS_URL = protocol + window.location.host
 
-// ================================================================
-// ESTADO GLOBAL
-// ================================================================
 let pd      = null
 let pdReady = false
 let ws      = null
-
-// valores de sensores del dispositivo LOCAL
-// se actualizan continuamente con devicemotion/deviceorientation
 let motion   = { x: 0, y: 0 }
 let rotation = { gamma: 0 }
 
 const statusEl = document.getElementById("status")
+const loaderEl = document.getElementById("loader")
+
 function setStatus(t) { statusEl.textContent = t }
 function smooth(a, b, f=0.15) { return a + (b-a)*f }
 
-// ================================================================
-// API DE PD
-// ================================================================
+function hideLoader() {
+  loaderEl.classList.add("hidden")
+  setTimeout(() => loaderEl.style.display = "none", 400)
+}
+
 function pdFloat(receiver, value) { pd?.sendFloat(receiver, value) }
 function pdList(receiver, values) { pd?.sendList(receiver, values) }
 
-// ================================================================
-// WEBSOCKET
-// Conecta al servidor que reenvía mensajes a todos
-// los dispositivos conectados.
-// ================================================================
 function initWebSocket() {
   ws = new WebSocket(WS_URL)
-
-  ws.onopen = () => {
-    console.log("WS conectado")
-    setStatus("✓")
-  }
-
-  ws.onclose = () => {
-    console.log("WS desconectado, reconectando...")
-    setTimeout(initWebSocket, 2000)
-  }
-
+  ws.onopen  = () => { console.log("WS conectado"); setStatus("✓") }
+  ws.onclose = () => { console.log("WS desconectado, reconectando..."); setTimeout(initWebSocket, 2000) }
   ws.onerror = (e) => console.warn("WS error:", e)
-
-  // recibir eventos de OTROS dispositivos
   ws.onmessage = (e) => {
     const msg = JSON.parse(e.data)
-    if (msg.type === "pad") {
-      // ejecutar la acción localmente con los sensores
-      // del dispositivo que tocó el pad
-      executePad(msg.pad, msg.motionX, msg.motionY, msg.gyro)
-    }
+    if (msg.type === "pad") executePad(msg.pad, msg.motionX, msg.motionY, msg.gyro)
   }
 }
 
-// ================================================================
-// SENSORES → PD
-// Loop continuo que alimenta el patch con los sensores locales.
-// ================================================================
 function initSensors() {
   window.addEventListener("devicemotion", e => {
     if (!e.accelerationIncludingGravity) return
@@ -120,9 +117,6 @@ function sensorLoop() {
   requestAnimationFrame(sensorLoop)
 }
 
-// ================================================================
-// PERMISOS iOS
-// ================================================================
 async function requestPermissions() {
   try {
     if (typeof DeviceMotionEvent?.requestPermission === "function") {
@@ -132,9 +126,6 @@ async function requestPermissions() {
   } catch(e) { console.warn("permisos:", e) }
 }
 
-// ================================================================
-// FLASH
-// ================================================================
 let cameraTrack = null
 async function initFlash() {
   try {
@@ -146,66 +137,32 @@ function flash(on) {
   cameraTrack?.applyConstraints({ advanced:[{torch:on}] }).catch(()=>{})
 }
 
-// ================================================================
-// EJECUTAR PAD
-// Esta función se llama tanto cuando el dispositivo LOCAL toca
-// un pad como cuando recibe el evento de OTRO dispositivo.
-// ================================================================
 function executePad(index, mx, my, gy) {
   if (!pdReady) return
-
-  // mandar valores de sensores al patch ANTES del trigger
   pdFloat("motionX", mx)
   pdFloat("motionY", my)
   pdFloat("gyro",    gy)
-
-  // disparar el pad en Pd
   pdList("pad", [index, index + 1])
-
-  // flash — grupo 2 (pads 5-9, índice base 0)
-  if (index >= 5 && index < 10) {
-    flash(true)
-    setTimeout(() => flash(false), 120)
-  }
-
-  // vibración — grupo 3 (pads 10-14, índice base 0)
-  if (index >= 10 && index < 15) {
-    navigator.vibrate?.(80)
-  }
-
-  // feedback visual
+  if (index >= 1  && index < 20) { flash(true); setTimeout(() => flash(false), 120) }
+  if (index >= 1 && index < 20) { navigator.vibrate?.(80) }
   const pads = document.querySelectorAll(".pad")
   pads[index]?.classList.add("active")
   setTimeout(() => pads[index]?.classList.remove("active"), 80)
 }
 
-// ================================================================
-// TOCAR UN PAD (acción local)
-// ================================================================
 function playPad(index) {
-  // ejecutar localmente con sensores locales
   executePad(index, motion.x, motion.y, rotation.gamma)
-
-  // broadcast a todos los otros dispositivos
   if (ws?.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({
-      type:    "pad",
-      pad:     index,
-      motionX: motion.x,
-      motionY: motion.y,
-      gyro:    rotation.gamma
+      type: "pad", pad: index,
+      motionX: motion.x, motionY: motion.y, gyro: rotation.gamma
     }))
   }
 }
 
-// ================================================================
-// INICIALIZAR PD
-// ================================================================
 async function initPd() {
   setStatus("cargando patch...")
 
-  // NOTA: Asegúrate de que los archivos se llamen patch.pd y sampler.pd en tu GitHub.
-  // Si se llaman demo.pd y audioplayer.pd, cambia los nombres en las siguientes líneas:
   const [patchText, samplerText] = await Promise.all([
     fetch("patch.pd").then(r => r.text()),
     fetch("sampler.pd").then(r => r.text())
@@ -221,7 +178,6 @@ async function initPd() {
 
   window._pd = pd
 
-  // cargar audios (.aiff)
   setStatus("cargando audios...")
   const filesList = []
   for (let i = 1; i <= 20; i++) {
@@ -234,7 +190,6 @@ async function initPd() {
   }
   console.log(`audios listos: ${filesList.length}`)
 
-  // escribir audios en el FS virtual del worklet
   const originalOnMessage = pd.node.port.onmessage
   await new Promise((resolve) => {
     pd.node.port.onmessage = (e) => {
@@ -253,22 +208,19 @@ async function initPd() {
     pd.node.port.postMessage({ type: "write-files", files: filesList })
   })
 
-  // disparar loadbang — cada sampler carga su .aiff
   pd.sendBang("loadbang")
   console.log("loadbang disparado ✓")
 
   pd.node.connect(pd.audioContext.destination)
   pdReady = true
-  setStatus("conectando...")
-  sensorLoop()
 
-  // conectar WebSocket después de que Pd está listo
+  hideLoader()
+  setStatus("✓")
+
+  sensorLoop()
   initWebSocket()
 }
 
-// ================================================================
-// GRILLA DE PADS
-// ================================================================
 const grid = document.getElementById("grid")
 for (let i = 0; i < 20; i++) {
   const pad = document.createElement("div")
@@ -278,9 +230,6 @@ for (let i = 0; i < 20; i++) {
   grid.appendChild(pad)
 }
 
-// ================================================================
-// ARRANQUE
-// ================================================================
 document.body.addEventListener("pointerdown", async () => {
   setStatus("iniciando...")
   await requestPermissions()
