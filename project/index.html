@@ -71,9 +71,9 @@ let pdReady = false
 let ws      = null
 let motion   = { x: 0, y: 0 }
 let rotation = { gamma: 0 }
-let ultimotoque = 0;
 
-const COOLDOWN_MS = 240;
+const cooldowns = new Array(20).fill(0);
+const COOLDOWN_MS = 5000;
 const statusEl = document.getElementById("status")
 const loaderEl = document.getElementById("loader")
 
