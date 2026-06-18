@@ -169,7 +169,7 @@ async function initPd() {
   ])
 
   pd = await createPd({
-    packages: ["vanilla", "cyclone"],
+    packages: ["vanilla"],
     files: { "sampler.pd": samplerText, "patch.pd": patchText },
     entry: "patch.pd",
     onPrint: (text) => console.log("[Pd]", text),
