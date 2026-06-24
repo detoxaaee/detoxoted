@@ -38,7 +38,7 @@
 #X obj 105 279 openpanel;
 #X msg 105 256 bang;
 #X obj 105 304 print;
-#X msg 298 144 symbol \$1.aif;
+#X msg 298 144 symbol \$1.aiff;
 #X msg 298 190 read -resize \$1 \$2-array;
 #X obj 351 32 r loadbang;
 #X obj 490 393 inlet;
