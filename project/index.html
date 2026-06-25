@@ -278,12 +278,12 @@ async function initPd() {
   
   // Bucle del 1 al 20 para descargar los audios
   for (let i = 1; i <= 20; i++) {
-    const res = await fetch(`${i}.aiff`)
+    const res = await fetch(`${i}.wav`)
     if (res.ok) {
       // Si existe, lo convertimos a datos binarios que Pure Data pueda entender
-      filesList.push({ path: `${i}.aiff`, content: new Uint8Array(await res.arrayBuffer()) })
+      filesList.push({ path: `${i}.wav`, content: new Uint8Array(await res.arrayBuffer()) })
     } else {
-      console.warn(`no encontró ${i}.aiff`)
+      console.warn(`no encontró ${i}.wav`)
     }
   }
   console.log(`audios listos: ${filesList.length}`)
