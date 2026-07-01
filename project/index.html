@@ -256,15 +256,15 @@ async function initPd() {
 
   // Descargamos tus parches
   const [patchText, samplerText] = await Promise.all([
-    fetch("patch.pd").then(r => r.text()),
+    fetch("main.pd").then(r => r.text()),
     fetch("sampler.pd").then(r => r.text())
   ])
 
   // Inicializamos la librería con tus parches
   pd = await createPd({
     packages: ["vanilla"], // "cyclone" removido en esta versión para mayor velocidad
-    files: { "sampler.pd": samplerText, "patch.pd": patchText },
-    entry: "patch.pd",
+    files: { "sampler.pd": samplerText, "main.pd": patchText },
+    entry: "main.pd",
     onPrint: (text) => console.log("[Pd]", text),
     onError: (err)  => console.error("[Pd error]", err.message)
   })
@@ -272,7 +272,7 @@ async function initPd() {
   // Hacemos que Pd sea global para poder llamarlo desde otras partes
   window._pd = pd
 
-  // Proceso de carga de los audios (.aiff)
+  // Proceso de carga de los audios (.wav)
   setStatus("cargando audios...")
   const filesList = []
   
