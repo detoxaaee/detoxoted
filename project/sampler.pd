@@ -1,0 +1,77 @@
+#N canvas 508 121 723 660 12;
+#X obj 100 100 cnv 15 140 112 empty empty empty 20 12 0 14 #e0e0e0
+#404040 0;
+#N canvas 0 22 450 300 (subpatch) 0;
+#X array \$0-array 254635 float 2;
+#X coords 0 1 254635 -1 131 72 1 0 0;
+#X restore 104 135 graph;
+#X obj 298 237 soundfiler;
+#X obj 298 261 nbx 10 14 -1e+37 1e+37 0 0 empty empty samples 100 8
+0 10 #c4c4fc #000000 #000000 0 256;
+#X obj 280 553 line~;
+#X msg 280 530 0 \, \$1 \$2;
+#X obj 280 507 pack f f, f 9;
+#X obj 280 301 t f f, f 9;
+#X obj 340 324 expr int (($f1 / 44100) * 1000);
+#X obj 340 390 nbx 5 14 -1e+37 1e+37 0 0 empty empty msec 0 -8 0 10
+#c4c4fc #000000 #000000 0 256;
+#X obj 340 484 *;
+#X obj 358 467 nbx 5 14 -1e+37 1e+37 0 0 empty empty empty 0 -8 0 10
+#fcfcfc #000000 #000000 0 256;
+#X msg 254 251 bang;
+#X obj 280 277 f;
+#X obj 298 191 pack s f;
+#X obj 351 80 f \$0;
+#X floatatom 298 100 5 0 0 0 - - - 0;
+#X floatatom 298 145 5 0 0 0 - - - 0;
+#X obj 298 122 - 1003;
+#X obj 280 576 tabread~ \$0-array;
+#X obj 280 622 outlet~;
+#X obj 254 202 inlet;
+#X obj 254 226 sel;
+#X msg 298 167 symbol \$1.aiff;
+#X msg 298 213 read -resize \$1 \$2-array;
+#X obj 351 55 r loadbang;
+#X obj 416 447 inlet;
+#X obj 280 599 *~ 1;
+#X text 211 100 vel;
+#X text 102 99 tri;
+#X text 415 466 << control de velocidad;
+#X text 397 386 << velocidad correcta de reproducción, f 21;
+#X text 564 323 << conversión de samples a milisegundos usando expr
+, f 19;
+#X text 387 79 << genera un numero para cada abstraccion y el nombre
+del archivo de audio a cargar, f 39;
+#X text 27 237 activa la lectura del archivo de audio alojado en el
+array >>, f 31;
+#X obj 351 32 r reset;
+#X connect 2 0 3 0;
+#X connect 3 0 13 1;
+#X connect 4 0 19 0;
+#X connect 5 0 4 0;
+#X connect 6 0 5 0;
+#X connect 7 0 6 0;
+#X connect 7 1 8 0;
+#X connect 8 0 9 0;
+#X connect 9 0 10 0;
+#X connect 10 0 6 1;
+#X connect 11 0 10 1;
+#X connect 12 0 13 0;
+#X connect 13 0 7 0;
+#X connect 14 0 24 0;
+#X connect 15 0 14 1;
+#X connect 15 0 16 0;
+#X connect 16 0 18 0;
+#X connect 17 0 23 0;
+#X connect 18 0 17 0;
+#X connect 18 0 22 1;
+#X connect 19 0 27 0;
+#X connect 21 0 22 0;
+#X connect 22 0 12 0;
+#X connect 23 0 14 0;
+#X connect 24 0 2 0;
+#X connect 25 0 15 0;
+#X connect 26 0 11 0;
+#X connect 27 0 20 0;
+#X connect 35 0 15 0;
+#X coords 0 -1 1 1 140 112 2 100 100;
