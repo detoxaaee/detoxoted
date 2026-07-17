@@ -92,8 +92,8 @@
 
 import { createPd } from "./libpd-wasm.js"
 
-const protocol = window.location.protocol === "https:" ? "wss://" : "ws://"
-const WS_URL = protocol + window.location.host
+// Borra la lógica del protocol y pon tu link de Render directamente
+const WS_URL = "wss://detoxoted.onrender.com"
 
 let pd      = null
 let pdReady = false
