@@ -7,7 +7,7 @@ const server = http.createServer(app)
 const wss    = new WebSocket.Server({ server })
 
 // servir archivos estáticos
-app.use(express.static(__dirname))
+app.use(express.static(__dirname));
 
 // enviar un mensaje a TODOS los clientes conectados
 function broadcast(obj) {
