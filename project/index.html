@@ -102,7 +102,7 @@
 <div id="toast"></div>
 <canvas id="hydra-canvas"></canvas>
 <div id="loader">
-  <img src="loading_pepe.png" alt="cargando...">
+  <img src="loading.gif" alt="cargando...">
 </div>
 <div class="wrapper" id="wrapper">
   <div class="grid" id="grid"></div>
@@ -213,6 +213,7 @@ TOᑕᗩ ᑌᑎ ᑎᑌᗰEᖇO Iᗰᑭᗩᖇ`,
 let toastTimer = null
 
 function mostrarToast() {
+  if (!pdReady) return  // ignorar si Pd no está listo
   const msg = MENSAJES[Math.floor(Math.random() * MENSAJES.length)]
   toastEl.textContent = msg
   if (toastTimer) clearTimeout(toastTimer)
@@ -394,18 +395,7 @@ document.body.addEventListener("pointerdown", async () => {
 
   // 1. Hydra arranca primero
   const hydra = new Hydra({ canvas: hydraCanvas, detectAudio: false })
-
-src(o0)
-shape(50,.34,.18)
-.modulate(noise(4,.1).diff(osc(20,-.01)).scroll(0,0,-.1,0))
-.repeat(.3,.2)
-.kaleid(2)
-.scale([.1,.25,.15,.05])
-.colorama(2)
-.rotate(.5,[.1,-.1])
-.blend(src(o0).pixelate([20,60,40.120],6),.4)
-.out(o0)
-bpm=10
+  osc(9, .1, .1).out()
 
   // 2. pequeña pausa para que Hydra tenga tiempo de renderizar
   //    antes de mostrar el gif encima
