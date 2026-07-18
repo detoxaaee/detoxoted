@@ -396,16 +396,16 @@ document.body.addEventListener("pointerdown", async () => {
   // 1. Hydra arranca primero
   const hydra = new Hydra({ canvas: hydraCanvas, detectAudio: false })
 
-noise(4,.2)
-.rotate(0,-.1)
-.posterize(7)
-.mask(shape(4,.8,.1).modulateRotate(noise(2,1,.4),.2))
-.repeat(3,2)
-.modulatePixelate(noise([7,2,5,8,3],2,.5).color([1,0,1],[0,1,1],[0,0,1]).pixelate([1,256],[256,1]).rotate(.1),2048,70)
-.shift(()=>Math.cos(time),[.8,.5,.3],.5,.01)
-.layer(src(o0).luma(.6,.01))
+shape(4,.9,.12)
+.repeat(20,20)
+.invert()
+.scroll(0,0,-.1,-.05)
+.modulateScale(gradient().g(),3,.9)
+.kaleid(1)
+.rotate(0,.1)
 .out(o0)
-bpm=72
+speed=1
+bpm=60
 
   // 2. pequeña pausa para que Hydra tenga tiempo de renderizar
   //    antes de mostrar el gif encima
