@@ -23,7 +23,6 @@
     }
     .pad.active { background:#00ff88; color:#000; }
 
-    /* Contador de usuarios conectados — arriba centrado */
     #status {
       position: fixed;
       top: 15px; left: 50%;
@@ -33,26 +32,27 @@
       z-index: 200;
     }
 
-    /* Mensaje emergente — aparece desde abajo durante el cooldown */
     #toast {
-  position: fixed;
-  top: 50%; left: 50%;
-  transform: translate(-50%, -40px);
-  color: #00ff88;
-  font-size: clamp(24px, 4vmin, 28px); /* responsive: escala con el tamaño de pantalla */
-  font-family: sans-serif;
-  letter-spacing: 0.05em;
-  text-align: center;
-  width: 80vw; /* limita el ancho para que no desborde en pantallas anchas */
-  z-index: 200;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.3s ease, transform 0.3s ease;
-}
-#toast.visible {
-  opacity: 1;
-  transform: translate(-50%, -50%); /* centrado perfecto horizontal y vertical */
-}
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -40px);
+      color: #00ff88;
+      font-size: clamp(14px, 4vmin, 28px);
+      font-family: monospace;       /* necesario para que el ASCII art no se deforme */
+      white-space: pre;             /* respeta espacios y saltos de línea del ASCII art */
+      line-height: 1.3;
+      letter-spacing: 0.05em;
+      text-align: center;
+      width: 80vw;
+      z-index: 200;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+    #toast.visible {
+      opacity: 1;
+      transform: translate(-50%, -50%);
+    }
 
     #loader {
       position: fixed;
@@ -76,10 +76,7 @@
 </head>
 <body>
 
-<!-- Contador de usuarios: se actualiza cuando alguien entra o sale -->
 <div id="status">toca para iniciar</div>
-
-<!-- Mensaje emergente: aparece durante el cooldown -->
 <div id="toast"></div>
 
 <div id="loader">
@@ -106,25 +103,18 @@ const loaderEl = document.getElementById("loader")
 const toastEl  = document.getElementById("toast")
 
 function smooth(a, b, f=0.15) { return a + (b-a)*f }
-
-// Actualiza el contador de usuarios en el status
-function setUsers(n) {
-  statusEl.textContent = `● ${n}`
-}
-
-// Durante la carga muestra texto en el status
-function setStatus(t) {
-  statusEl.textContent = t
-}
-
+function setUsers(n) { statusEl.textContent = `● ${n}` }
+function setStatus(t) { statusEl.textContent = t }
 function hideLoader() {
   loaderEl.classList.add("hidden")
   setTimeout(() => loaderEl.style.display = "none", 400)
 }
 
-// ── MENSAJES EMERGENTES (TOAST) ─────────────────────────────────
-// Estos mensajes se muestran durante el cooldown.
-// Para agregar más, simplemente añadí líneas al array.
+// ── MENSAJES EMERGENTES ──────────────────────────────────────────
+// Podés mezclar texto plano con ASCII art usando backticks.
+// Para ASCII art, respetá la indentación — cada espacio importa.
+// Mantené los ASCII arts de no más de 12 caracteres de ancho
+// para que no desborden en pantallas chicas.
 const MENSAJES = [
   `𝙙𝙚𝙪𝙙𝙤𝙧𝙚𝙨
    𝙙𝙚
@@ -147,19 +137,15 @@ const MENSAJES = [
 ⠀⠀⠀⠀⠀⣿⠀⠀⠀⠀⠀⠀⠀⠀⡏⠀⠀⠀
 ⠀⠀⠀⠀⠀⠛⠒⠒⠒⠒⠒⠒⠒⠚⠃⠀⠀⠀`,
   `🇻‌🇦‌🇲‌🇴‌🇸‌ 🇲‌🇴‌🇸‌🇸‌🇮‌❗`,
-  `⠀⠀⠀⠀⠀⠀⢀⣤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⢤⣤⣀⣀⡀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⢀⡼⠋⠀⣀⠄⡂⠍⣀⣒⣒⠂⠀⠬⠤⠤⠬⠍⠉⠝⠲⣄⡀⠀⠀
-⠀⠀⠀⢀⡾⠁⠀⠊⢔⠕⠈⣀⣀⡀⠈⠆⠀⠀⠀⡍⠁⠀⠁⢂⠀⠈⣷⠀⠀
-⠀⠀⣠⣾⠥⠀⠀⣠⢠⣞⣿⣿⣿⣉⠳⣄⠀⠀⣀⣤⣶⣶⣶⡄⠀⠀⣘⢦⡀
-⢀⡞⡍⣠⠞⢋⡛⠶⠤⣤⠴⠚⠀⠈⠙⠁⠀⠀⢹⡏⠁⠀⣀⣠⠤⢤⡕⠱⣷
-⠘⡇⠇⣯⠤⢾⡙⠲⢤⣀⡀⠤⠀⢲⡖⣂⣀⠀⠀⢙⣶⣄⠈⠉⣸⡄⠠⣠⡿
-⠀⠹⣜⡪⠀⠈⢷⣦⣬⣏⠉⠛⠲⣮⣧⣁⣀⣀⠶⠞⢁⣀⣨⢶⢿⣧⠉⡼⠁
-⠀⠀⠈⢷⡀⠀⠀⠳⣌⡟⠻⠷⣶⣧⣀⣀⣹⣉⣉⣿⣉⣉⣇⣼⣾⣿⠀⡇⠀
-⠀⠀⠀⠈⢳⡄⠀⠀⠘⠳⣄⡀⡼⠈⠉⠛⡿⠿⠿⡿⠿⣿⢿⣿⣿⡇⠀⡇⠀
-⠀⠀⠀⠀⠀⠙⢦⣕⠠⣒⠌⡙⠓⠶⠤⣤⣧⣀⣸⣇⣴⣧⠾⠾⠋⠀⠀⡇⠀
-⠀⠀⠀⠀⠀⠀⠀⠈⠙⠶⣭⣒⠩⠖⢠⣤⠄⠀⠀⠀⠀⠀⠠⠔⠁⡰⠀⣧⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠛⠲⢤⣀⣀⠉⠉⠀⠀⠀⠀⠀⠁⠀⣠⠏⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠉⠉⠛⠒⠲⠶⠤⠴⠒⠚⠁⠀⠀`,
+  `⠀⠀⠀⢀⡴⠋⠉⢉⠍⣉⡉⠉⠉⠉⠓⠲⠶⠤⣄⠀⠀⠀
+⠀⠀⢀⠎⠀⠪⠾⢊⣁⣀⡀⠄⠀⠀⡌⠉⠁⠄⠀⢳⠀⠀
+⠀⣰⠟⣢⣤⣐⠘⠛⣻⠻⠭⠇⠀⢤⡶⠟⠛⠂⠀⢌⢷⡀
+⢸⢈⢸⠠⡶⠬⣉⡉⠁⠀⣠⢄⡀⠀⠳⣄⠑⠚⣏⠁⣪⠇
+⠀⢯⡊⠀⠹⡦⣼⣍⠛⢲⠯⢭⣁⣲⣚⣁⣬⢾⢿⠈⡜⠀
+⠀⠀⠙⡄⠀⠘⢾⡉⠙⡟⠶⢶⣿⣶⣿⣶⣿⣾⣿⠀⡇⠀
+⠀⠀⠀⠙⢦⣤⡠⡙⠲⠧⠀⣠⣇⣨⣏⣽⡹⠽⠏⠀⡇⠀
+⠀⠀⠀⠀⠀⠈⠙⠦⢕⡋⠶⠄⣤⠤⠤⠤⠤⠂⡠⠀⡇⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠑⠒⠦⠤⣄⣀⣀⣀⣠⠔⠁⠀`,
   `ֆɨɢǟʍօֆ ʄɛֆȶɛʝǟռɖօ ʀɛʏ!
 ǟʟʟá ռօֆ ʟʟɛʋǟռ ʟǟ քǟȶǟɢօռɨǟ...`,
   `⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣠⣤⣶⣶⣶⣶⣶⣤⣄⡀⠀⠀⠀⠀⠀⠀
@@ -188,29 +174,29 @@ const MENSAJES = [
 𝚝𝚎𝚗𝚎𝚖𝚘𝚜 
    𝚒𝚍𝚎𝚊𝚜
          𝚇𝙳 ༼ つ ◕_◕ ༽つ gib`,
-  `⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⡀⠀⠀⠀⠀⠀⠄⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⡟⠇⠀⠀⠀⠀⢻⡄⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⡇⠀⠀⠀⠀⡸⣞⡇⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⠃⠀⠀⠀⢀⣧⢿⣽⡀⠀⠀
-⠀⢴⣿⠆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⠀⠀⠀⠀⣼⣞⡿⡞⡁⠀⠀
-⠀⠀⠈⠓⢤⡀⠀⠀⠀⡀⠀⠀⠀⠀⠀⠀⠀⣾⠀⠀⠀⣰⣟⢾⣽⢃⡿⠀⠀
-⠀⠀⠀⠀⠀⠙⢆⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⣠⢤⣶⡻⣞⣿⣺⠇⣽⢣⠀
-⢠⣄⡀⠀⠀⠀⠀⠙⢦⡀⠀⠀⠀⠀⣀⣠⣤⣿⣽⣻⢾⣽⣷⣾⣽⠃⢆⡇⠀
-⠈⢻⣿⣶⣄⡀⠀⠀⠀⣉⣳⣴⢶⣞⡿⣽⣞⡷⣯⢿⡽⣞⣿⠟⠋⠁⠈⠀⠀
-⠀⠀⢻⣿⣿⣿⣿⣶⣾⣿⡽⣯⣟⡾⣽⡷⣯⣟⡽⡾⣽⡯⠁⠀⠀⠀⠀⠀⠀
-⠀⠀⠉⢞⣿⣿⢯⡿⣿⣯⣟⣷⣯⢿⣳⣟⡷⣽⣼⣻⣽⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⢾⣿⣿⣯⣽⣾⣿⣾⣗⡿⣯⡷⣯⣟⡷⣞⣼⣿⣀⠀⠀⠀⠀⢀⣠⠀
-⠀⠀⢀⣼⠛⠏⠉⠉⠽⢟⢿⣿⣿⣿⣿⣷⣻⢾⡽⣞⡷⠄⡹⣶⠟⣻⢿⡃⠀
-⠀⠀⣸⣯⠇⠀⠀⠀⠀⠀⠁⣽⣿⣿⣿⣷⣯⣿⣽⣛⡦⠀⠀⢩⠣⣹⢯⡇⠀
-⠀⠀⢈⣿⡃⠁⠀⠀⠀⢀⣬⣾⣟⢿⣻⣿⣿⣟⡾⣽⡳⠄⠎⢳⢈⢯⣟⡆⠀
-⠀⠀⣸⣷⣷⣶⣳⣶⣺⣿⣿⣷⢯⣟⣿⣿⣳⢯⠛⠅⠃⠀⠀⣴⢪⡿⣬⠂⠀
-⠀⠀⢺⡽⣾⡽⣯⣟⣿⡿⣯⣿⣿⣾⢿⣿⠳⢏⣈⢠⠀⠀⣰⢿⡞⣜⣉⠀⠀
-⠀⠀⠘⣽⣳⣟⣳⣟⣾⣽⣿⣿⣿⣿⣿⣦⣜⡻⡽⠆⠃⣴⡟⣯⠗⡣⣭⠀⠀
-⠀⠀⠀⠹⣿⣾⣿⣯⣿⣾⣿⣿⣿⣿⣿⣿⣿⣿⣾⠧⠀⠹⠾⡵⡞⠹⢠⠀⠀
-⠀⠀⠀⠐⠹⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⢯⠊⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⣀⠻⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⢯⣏⡰⣶⣵⣢⢄⢠⡀⡄⠀⠀
-⠀⠀⡀⠔⠉⠀⠀⢽⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣔⣻⢷⣯⡽⣚⣷⣻⡼⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠘⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷⡟⣽⣞⣷⣻⠀⠀`,
+  `⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⡀⠀⠀⠀⠀⠀⠄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⡿⠇⠀⠀⠀⠀⢻⡄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⡇⠀⠀⠀⠀⡸⣞⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⠃⠀⠀⠀⢀⣧⢿⣽⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⢴⣿⠆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⠀⠀⠀⠀⣼⣞⡿⣞⡅⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠈⠓⢤⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣾⠀⠀⠀⣰⣟⢾⣽⢫⡿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠙⢦⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⣠⢤⣶⡻⣞⣿⣺⢯⣽⣳⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⢠⣄⡀⠀⠀⠀⠀⠙⢦⡀⠀⠀⠀⠀⣀⣠⣤⣿⣽⣻⢾⣽⣷⣾⣽⣻⣞⣷⣳⡄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠈⢻⣿⣶⣄⡀⠀⠀⠀⣉⣲⣴⢶⣞⡿⣽⣞⡷⣯⢿⡽⣞⣿⠟⠋⠁⠉⠈⠳⣟⣆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⢻⣿⣿⣿⣿⢶⣾⣿⡽⣯⣟⡾⣽⡷⣯⣟⡽⡾⣽⡯⠁⠀⠀⠀⠀⠀⠀⢮⣭⣦⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠉⢞⣿⣿⢯⡿⣿⣯⣟⣷⣯⢿⣳⣟⡷⣽⣼⣻⣽⠀⠀⠀⠀⠀⠀⠀⢀⣼⡯⡗⠋⠤⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⢾⣿⣿⣯⣽⣾⣿⣾⣗⡿⣯⡷⣯⣟⡷⣞⣼⣿⣀⠀⠀⠀⠀⢀⣠⡿⣏⡗⠈⠐⠈⠅⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⢀⣼⠛⠏⠉⠉⠽⢟⢿⣿⣿⣿⣿⣷⣻⢾⡽⣞⡷⠄⡹⣶⢿⣻⢿⣻⡽⢯⣼⢦⠶⠁⠈⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⣸⣯⠇⠀⠀⠀⠀⠀⠁⣽⣿⣿⣿⣷⣯⣿⣽⣛⡦⠀⠀⢩⣿⣹⢯⣷⢻⣟⠺⢣⡖⣘⠤⠓⠀⠀⠀⠀⠀⠀
+⠀⠀⢈⣿⡃⠁⠀⠀⠀⢀⣤⣾⣟⢿⣻⣿⣿⣟⡾⣽⡳⠄⠎⢳⣯⢯⣟⡾⢯⣞⣯⣓⠉⢀⠀⠀⡄⢢⡀⠀⠀⠀
+⠀⠀⣸⣷⣷⣶⣳⣶⣺⣿⣿⣳⢯⣟⣿⣿⣳⢯⠛⠅⠃⠀⠀⣴⣿⡿⣬⢶⠾⠙⣊⣥⠾⡒⠊⢁⢠⠣⣌⠀⠀⠀
+⠀⠀⢺⡽⣾⡽⣯⣟⣿⡿⣯⣿⣿⣾⢿⣿⠳⢏⣈⢠⠀⠀⣰⢿⡿⣽⣉⡶⠌⠋⠉⣀⡀⠁⠀⠀⠀⣘⡐⣂⠀⠀
+⠀⠀⠘⣽⣳⣟⣳⣟⣾⣽⣿⣿⣿⣿⣿⣦⣜⡻⡽⠆⠧⣴⡟⣯⢟⡳⣭⠲⠄⠐⠀⠀⠀⠈⠁⠉⠑⢊⡕⢃⠄⠀
+⠀⠀⠀⠹⣿⣾⣿⣯⣿⣾⣿⣿⣿⣿⣿⣿⣿⣿⣾⢧⠀⠹⠾⡵⡞⡽⢢⣃⠐⠀⠀⠄⡐⠀⠀⠀⡘⢦⠘⣌⠀⠀
+⠀⠀⠀⠐⠹⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⢯⡏⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⠒⡈⠀⡀⠄⡑⠢⣉⠴⣈⣆
+⠀⠀⠀⠀⠀⣀⠻⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⢯⣏⡴⣶⣵⣢⢤⢠⡀⡄⢠⠐⡰⢌⡱⠀⡁⡀⠆⡥⠆⡥⣛⡽⣾
+⠀⠀⡀⠔⠉⠀⠀⢽⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣼⣻⢷⣯⡽⣞⣷⣻⡼⣡⢋⡔⠣⠜⡐⢐⠠⡓⣤⣙⣲⣽⣻⢷
+⠀⠀⠀⠀⠀⠀⠀⠘⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷⡿⣽⣞⣷⣻⡴⣣⢜⡱⣊⡕⣊⠠⡙⡰⣭⢷⣯⣿⢿⠀`,
 `                      𝚝𝚞𝚜 𝚍𝚊𝚝𝚘𝚜 
 𝚎𝚜𝚝𝚊𝚗 
 𝚌𝚘𝚖𝚙𝚛𝚘𝚖𝚎𝚝𝚒𝚍𝚘𝚜`,
@@ -218,84 +204,72 @@ const MENSAJES = [
                 TOᗪO ᒪO 
 ᑫᑌE ᐯEᔕ`,
 
-`⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⡿⣿⣿⣿
-⡿⠟⠫⠋⢉⣁⣉⡉⠉⠉⠋⠛⣿⣿⣿⡛⠋⠋⠉⠉⣁⣈⣉⡐⠩⠛⢻
-⣷⣦⣶⣿⡿⠯⠭⠭⠭⠭⣝⢻⣿⣿⣿⡿⢫⠭⠭⠭⠭⠭⠿⣿⣷⣦⣼
-⣿⣿⣿⣩⡚⠃⢀⠀⡘⠌⢻⣸⣿⣿⣿⣷⣼⣋⢚⢀⣀⢀⠛⣊⣽⣿⣿
-⣿⣿⣿⣿⣿⣿⣿⣿⣿⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⣿⣿
-⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡟⣼⣿⣿
-⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠿⢋⣿⡟⣸⣿⣿⣿
-⣿⣿⣿⣿⣿⣿⣿⢙⣛⣛⣛⣛⣛⣛⣛⣉⣩⣭⣴⣾⣿⣿⢣⣿⣿⣿⣿
-⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⢿⣼⣿⣿⣿⣿`,
-`⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡼⢹⡄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠙⠿⣟⠛⠃⠀⠛⢛⡿⠟⠁⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⡗⠀⡀⠐⡏⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⣀⣴⠊⠀⠀⠀⣸⡵⠋⠉⠳⣽⡀⠀⠀⠙⢦⣄⡀⠀⠀
-⠀⢠⣾⣼⠕⠀⠀⠀⠀⠁⠀⠀⠠⣀⠈⠁⠀⠀⠀⠹⣗⢳⢆⠀
-⠀⣧⣟⡕⠀⠀⠀⠀⠀⢀⣤⡤⠀⠈⠻⣦⡀⠀⠀⠀⢹⣿⢸⡀
-⢸⢻⣿⠀⠀⠀⠀⠀⣴⣿⢿⡀⠀⠀⠀⠘⣿⡄⠀⠀⠀⡿⡾⣠
-⢸⣎⡾⡀⠀⠀⠀⠀⠈⠁⠀⠙⣦⣄⠀⠀⣿⡇⠀⠀⠀⣽⣴⣇
-⢰⣝⣇⡇⠀⠀⠀⠀⣠⣄⣀⠀⠈⠻⣷⣼⣿⠃⠀⠀⢀⡏⢏⡞
-⠀⢝⢮⣇⣆⠀⢠⣶⠋⠈⠙⠻⠿⠿⠿⠿⣷⡄⠀⢰⢻⡷⣫⠀
-⠀⠈⠳⣯⣽⡖⣌⠁⠀⠀⠀⠀⠀⠀⠀⠀⠈⣠⢾⣟⣽⡞⠁⠀
-⠀⠀⠀⠑⠯⣭⣼⡷⠤⣄⡠⢄⣠⢤⣀⡤⠾⣯⣭⡽⠊⠀⠀⠀
-⠀⠀⠀⠀⠀⠑⠒⠚⠛⣩⠞⠁⠀⠙⢮⠛⠛⠒⠊⠀⠀⠀⠀⠀`,
+`⣿⠿⠿⠛⠛⠛⠛⠻⠿⠿⣿⣿⡿⠿⠿⠟⠛⠛⠛⠋⠛⠿⣿
+⣧⣠⣴⡶⠟⠛⠒⠒⣒⢲⣿⣿⣿⡖⣒⠒⠒⠛⠻⢷⣦⣄⣽
+⣿⣿⣋⣐⡂⠀⢀⠆⠲⣠⣿⣿⣿⣄⣇⣰⣀⣀⣘⢂⣽⣿⣿
+⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
+⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠟⣹⣿
+⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠟⣿⡏⣼⣿⣿
+⣿⣿⣿⣿⣿⡟⠿⠿⠿⠿⠿⠿⠿⠿⢛⣛⣡⣾⡿⢰⣿⣿⣿
+⣿⣿⣿⣿⣿⣷⣴⣶⣶⣶⣶⣶⣾⣿⣿⣿⣿⣿⣇⣿⣿⣿⣿`,
+`⠀⠀⠀⠀⠀⠀⠀⢀⣇⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⣼⢻⡀⠀⠀⠀⠀⠀
+⠀⢠⣀⣀⣀⣀⣰⡇⠈⣧⣀⣀⣀⣀⣀
+⠀⠀⠈⠻⢦⡀⠀⠀⠀⠀⢀⣠⠾⠋⠀
+⠀⠀⠀⠀⠀⣹⠃⠀⠀⠀⢿⠁⠀⠀⠀
+⠀⠀⠀⠀⢠⣏⣤⠞⠛⢦⣜⣧⠀⠀⠀
+⠀⠀⠀⠀⠾⠋⠀⠀⠀⠀⠉⠻⡄⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠁⠲⣤⡀⠀⠀⠀
+⠀⠀⠀⠀⢀⣴⣤⡤⠀⠀⠈⠻⣷⡀⠀
+⠀⠀⠀⣴⣿⣿⣏⠀⠀⠀⠀⠀⠹⣿⡆
+⠀⠀⠀⠹⠋⠈⠻⣷⣄⠀⠀⠀⠀⣿⣿
+⠀⠀⠀⠀⠀⠀⠀⠈⠻⣷⣄⠀⢀⣿⣿
+⠀⠀⠀⣴⢶⣤⣀⡀⠀⠈⢻⣷⣾⣿⠏
+⠀⣴⡾⠉⠀⠉⠛⠿⢿⣿⣿⡿⢿⣷⣄
+⠘⠛⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⠋`,
 `lаѓБа 
     эl 
         тэlоfоио
 `,`ɯıןǝı dǝbǝɹ 
                ɯoɹıɹ
 ɔoɯo ɯnssoןını`,
-`⣿⣿⣿⣿⣿⣿⣿⡿⠟⠋⠉⢁⣀⣀⣀⡈⠉⠛⢿⡿⠿⢿⣿⣿⣿
-⣿⣿⣿⣿⣿⣿⠏⢀⣴⣾⣿⣿⣿⣿⣿⡟⠃⢀⣀⣤⣤⣄⠉⢿⣿
-⣿⣿⣿⣿⣿⡏⠀⣾⣿⣿⣿⣿⣿⣿⠏⠀⣴⣿⣿⣿⣯⣻⣧⠀⢻
-⣿⣿⣿⣿⣿⠁⢸⣿⣿⣿⣿⣿⣿⣿⠀⠸⣿⣿⣿⣿⣿⣿⣿⡇⠈
-⣿⣿⣿⣿⡏⠀⣼⣿⣿⣿⣿⣿⣿⣿⣧⠀⠹⢿⣿⣿⣿⡿⠟⠀⣼
-⣿⣿⣿⡿⠇⠀⠛⠿⣿⣿⣿⣿⣿⣿⣿⣷⣦⣀⡈⠉⠀⠀⣴⣿⣿
-⣿⡿⠁⣀⢠⢤⣤⠀⠀⠉⢀⠀⠀⠈⠉⠻⢿⣿⣿⣿⡇⠀⣿⣿⣿
-⡟⠀⣴⣽⣷⣷⠆⠀⣴⣾⣿⣔⡳⢦⡄⣄⣠⣿⣿⣿⡇⠀⣿⣿⣿
-⠀⢰⣿⣿⣿⠇⠀⣼⣿⣿⣿⣿⣿⣷⣶⣿⣿⣿⣿⣿⣿⠀⢻⣿⣿
-⠀⠸⣾⣿⣿⠀⢰⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠀⢸⣿⣿
-⣧⠀⠻⢿⣿⠀⠸⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠀⢸⣿⣿
-⣿⣷⣤⣀⣈⠀⠀⠙⢿⣿⣿⣿⣿⣿⣿⠟⠙⣿⣿⣿⡏⠀⣼⣿⣿
-⣿⣿⣿⣿⣿⡇⠀⣄⠀⠙⠛⠿⠿⠛⠁⢀⣼⣿⣿⣿⡇⠀⣿⣿⣿
-⣿⣿⣿⣿⣿⣷⡀⠘⠿⠶⠀⢀⣤⣤⡀⠙⢿⣿⣿⡿⠁⢰⣿⣿⣿
-⢻⣿⣿⣿⣿⣿⣿⣦⣤⣤⣴⣿⣿⣿⣷⣄⣀⠈⠁⣀⣠⣿⣿⣿⣿
-⣹⣿⣿⣿⡿⢋⣩⣬⣩⣿⠃⣿⣿⣿⣿⢸⣿⡿⢋⣡⣬⣩⣿⣿⣿
-⡗⣿⣿⣿⣧⣈⣛⠛⠻⣿⠀⣿⣿⣿⡿⢸⣿⣧⣈⣛⠛⠻⣿⣿⣿
-⣿⣿⣿⣿⠹⣿⣿⡿⠂⣿⣇⠸⣿⣿⠃⣼⣿⠻⣿⣿⡿⠀⣿⣿⣿
-⣿⣿⣿⣿⣶⣤⣤⣴⣾⣿⣿⣶⣤⣤`,
+`⠀⠀⠀⠀⠀⠀⠀⢀⣠⣴⣶⡾⠿⠿⠿⢷⣶⣤⡀⢀⣀⡀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⣰⡿⠋⠁⠀⠀⠀⠀⠀⢠⣼⡿⠿⠛⠛⠻⣶⡀⠀
+⠀⠀⠀⠀⠀⢰⣿⠁⠀⠀⠀⠀⠀⠀⣰⣿⠋⠀⠀⠀⠐⠄⠘⣿⡄
+⠀⠀⠀⠀⠀⣾⡇⠀⠀⠀⠀⠀⠀⠀⣿⣇⠀⠀⠀⠀⠀⠀⠀⢸⣷
+⠀⠀⠀⠀⢰⣿⠃⠀⠀⠀⠀⠀⠀⠀⠘⣿⣆⡀⠀⠀⠀⢀⣠⣿⠃
+⠀⠀⠀⢀⣸⣿⣤⣀⠀⠀⠀⠀⠀⠀⠀⠈⠙⠿⢷⣶⣿⣿⠋⠀⠀
+⠀⢀⣾⠿⡟⡛⠛⣿⣿⣶⡿⣿⣿⣷⣶⣄⡀⠀⠀⠀⢸⣿⠀⠀⠀
+⢠⣿⠋⠂⠈⠈⣹⣿⠋⠁⠀⠫⢌⡙⢻⠻⠟⠀⠀⠀⢸⣿⠀⠀⠀
+⣿⡏⠀⠀⠀⣸⣿⠃⠀⠀⠀⠀⠀⠈⠉⠀⠀⠀⠀⠀⠀⣿⡄⠀⠀
+⣿⣇⠁⠀⠀⣿⡏⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⡇⠀⠀
+⠘⣿⣄⡀⠀⣿⣇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⡇⠀⠀
+⠀⠈⠛⠿⠷⣿⣿⣦⡀⠀⠀⠀⠀⠀⠀⣠⣦⠀⠀⠀⢰⣿⠃⠀⠀
+⠀⠀⠀⠀⠀⢸⣿⠻⣿⣦⣤⣀⣀⣤⣾⡿⠃⠀⠀⠀⢸⣿⠀⠀⠀
+⠀⠀⠀⠀⠀⠈⢿⣧⣀⣉⣿⡿⠛⠛⢿⣦⡀⠀⠀⢀⣾⡏⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠙⠛⠛⠋⠀⠀⠀⠈⠻⠿⣷⣾⠿⠟⠀⠀⠀⠀
+⠀⠀⠀⠀⢀⡴⠖⠓⠖⠀⣼⠀⠀⠀⠀⡇⠀⢀⡴⠞⠓⠖⠀⠀⠀
+⠀⠀⠀⠀⠘⠷⠤⣤⣄⠀⣿⠀⠀⠀⢀⡇⠀⠘⠷⠤⣤⣄⠀⠀⠀
+⠀⠀⠀⠀⣆⠀⠀⢀⣽⠀⠸⣇⠀⠀⣼⠃⠀⣄⠀⠀⢀⣿⠀⠀⠀
+⠀⠀⠀⠀⠉⠛⠛⠋⠁⠀⠀⠉⠛⠛⠁⠀⠀⠉⠛⠛⠋⠁⠀⠀⠀`,
 `ᖇOTᗩ Tᑌ TEᒪEᖴOᑎO Y 
 TOᑕᗩ ᑌᑎ ᑎᑌᗰEᖇO Iᗰᑭᗩᖇ`,
  `(っ◔◡◔)っ ♥ 𝒉𝒂𝒄𝒆 𝒍𝒐 𝒒𝒖𝒆 
                      𝒒𝒖𝒊𝒆𝒓𝒂𝒔 𝒓𝒆𝒚! 
 𝒏𝒐 𝒎𝒆 𝒅𝒆𝒔 𝒃𝒐𝒍𝒂... ♥`,
-`⡒⡌⢦⠱⢌⠦⠱⡌⢢⠥⠬⣔⠁⡜⠄⠣⢈⠄⣃⠬⢄⡃⡜⠄⣅⠎⠴⡡⠎⡔⡡⢎⢢⠱⢌
-⡱⢘⠢⡍⠲⡌⡓⣌⢸⣈⣑⡠⢃⡼⡜⠟⡜⣄⠣⢬⣀⠡⡔⡼⠘⡌⠒⡥⣙⠰⠱⡌⠦⣙⠢
-⢡⢋⠴⡉⡕⢢⡑⢆⢸⠐⢠⡳⡹⣷⠱⡸⣸⣇⢦⣛⣀⠇⣱⣩⡉⠹⡌⠴⣈⠧⡑⣌⠲⣁⠎
-⠢⢍⠢⠱⢌⠣⢜⢢⢂⣨⣿⢷⣶⣿⣷⢲⣿⡟⣠⣴⣶⣶⣤⡀⠸⣷⣦⢒⢡⠒⣅⢢⠱⢌⣊
-⡑⡊⠥⡉⠦⡙⣂⢎⢲⣿⢣⣿⣿⡿⣡⠟⠁⣾⣿⣿⣿⣿⣿⡇⠀⢿⣿⣆⣊⠱⣐⠢⢃⠲⢄
-⠰⡉⢆⠱⢡⡑⠆⢤⣿⡇⣼⡟⠉⠀⠀⠀⠾⢿⣿⣿⠿⠿⠿⠧⠈⠘⣿⣿⠤⢃⠆⣡⠃⡱⢈
-⠡⠜⢢⠁⠦⡑⠒⣾⣿⠀⡟⡄⣄⣃⠀⠈⠀⠄⣿⣿⠀⠀⡀⠄⠐⠀⢻⣿⣤⠡⠎⢄⡑⠠⢃
-⢈⠜⢢⠉⢢⠑⢱⣿⣿⠸⢀⢧⣸⣿⣿⣿⣾⣴⣿⡇⠀⣴⣶⣤⡆⠂⠘⣿⣇⠎⠜⠠⣀⠃⡄
-⠀⠌⡀⠃⠀⠁⣿⣿⣿⡀⣼⡌⢿⣿⣿⣿⡟⢁⠀⠀⠀⢻⣿⡿⠁⠀⠁⢻⣿⠃⠈⠁⠀⠀⠀
-⠠⠄⡀⣀⠠⠄⣿⣿⣿⣧⣹⣧⡠⣸⣿⣿⠿⠏⠿⠴⠦⣾⡿⠀⠰⠀⠤⢸⣿⣠⡄⠤⢀⡀⢀
-⡐⠌⡐⡀⠆⡁⣿⡟⣿⣿⣿⣿⢸⣿⣿⣿⣶⣏⠛⢋⣐⠄⡀⢀⣢⣴⡾⢸⣿⢻⠁⠒⠤⠐⢂
-⠐⡌⡐⠄⢃⠄⢻⡇⣿⣿⣿⣿⢸⣿⣿⣿⡿⢿⣿⣿⢷⠀⠠⢫⣾⠟⢡⣿⣏⡾⠠⢉⠤⠉⡄
-⠤⢤⣬⡸⠀⡊⠀⠃⣿⣇⣿⣿⢨⣝⠿⣿⣦⡄⠀⠀⠀⠀⡀⠟⠀⠀⣿⣟⠾⠁⢢⠁⢢⠡⠐
-⣶⣶⣌⣿⠶⢾⠿⡆⢾⣿⢹⣿⡆⢿⡿⢨⣿⣿⣷⣴⣅⠄⠀⠀⠘⡜⣿⠠⠀⠌⢄⠊⢄⠢⢁
-⣿⢟⡻⣟⢶⣅⡂⣀⡘⠿⣛⣛⢷⢈⣃⡈⢚⢿⡝⣻⡿⡂⢠⡆⣀⠘⡘⣧⢌⢰⣿⣾⣷⣟⡆
-⡏⡯⠝⠌⡾⠇⠃⡏⠉⡞⡯⡉⡇⠈⠭⢥⠈⣸⢳⣯⢣⢠⠿⡜⠀⠡⠸⡙⠎⢹⡿⣿⢧⣿⡇
-⡿⢝⡲⣹⢡⠸⡄⣗⡒⠉⣗⣲⠁⠘⢛⣣⠀⠋⡄⣿⡸⣬⡄⡇⠀⢀⠀⢹⠒⢸⣿⢯⣯⣿⡇
-⣧⠮⡥⣹⡞⢧⡇⢿⣷⡂⠇⢇⠣⠠⠬⠍⠀⡼⢡⠏⢷⣆⠃⠱⠤⠎⠀⠸⠀⢸⣿⣟⣾⢯⡇
-⣿⣿⣾⣿⣿⣿⣿⣿⣿⣿⣆⠙⠂⠀⠀⠀⠹⣿⣿⣿⣿⣿⡀⠀⠀⠀⠀⠀⠀⠸⠛⠞⠯⠛⠃`,
+`⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀ ∩
+　　　　　　　＼＼
+　　　　　　　／　 ）
+⊂＼＿／￣￣￣　 ／
+　＼＿／   ° ͜ʖ ° （
+　　　）　　 　／⌒＼
+　　／　 ＿＿＿／⌒＼⊃
+　（　 ／
+　　＼＼
+⠀⠀⠀⠀ U`,
 `ㄒㄖ匚á 卩卂丂ㄒㄖ`,
-`▗▄▄▄ ▗▄▄▄▖▗▄▄▄▖▗▄▖ ▗▖  ▗▖
-▐▌  █▐▌     █ ▐▌ ▐▌ ▝▚▞▘ 
-▐▌  █▐▛▀▀▘  █ ▐▌ ▐▌  ▐▌  
-▐▙▄▄▀▐▙▄▄▖  █ ▝▚▄▞▘▗▞▘▝▚▖`,
+`█▀▄ █▀▀ ▀█▀ █▀█ ▀▄▀
+█▄▀ ██▄ ░█░ █▄█ █░█`,
 `Єѕта эѕ циа оъѓа 
 Иэо ↁаↁаіѕта ↁіБітаl 
 ↁэ Zоэ Ҁоѓvаláи, 
@@ -305,20 +279,13 @@ Fѓаисо Гоѓаlэѕ Ў
 𝒍𝒂 𝑪𝑰𝑨`,
 ]
 
-let toastTimer = null  // referencia al timer de ocultado
+let toastTimer = null
 
 function mostrarToast() {
-  // elegir un mensaje al azar
   const msg = MENSAJES[Math.floor(Math.random() * MENSAJES.length)]
   toastEl.textContent = msg
-
-  // cancelar cualquier timer anterior
   if (toastTimer) clearTimeout(toastTimer)
-
-  // mostrar
   toastEl.classList.add("visible")
-
-  // ocultar después del cooldown
   toastTimer = setTimeout(() => {
     toastEl.classList.remove("visible")
   }, COOLDOWN_MS)
@@ -331,23 +298,13 @@ function pdList(receiver, values) { pd?.sendList(receiver, values) }
 // ── WEBSOCKET ────────────────────────────────────────────────────
 function initWebSocket() {
   ws = new WebSocket(WS_URL)
-
   ws.onopen  = () => { console.log("WS conectado") }
   ws.onclose = () => { console.log("WS desconectado, reconectando..."); setTimeout(initWebSocket, 2000) }
   ws.onerror = (e) => console.warn("WS error:", e)
-
   ws.onmessage = (e) => {
     const msg = JSON.parse(e.data)
-
-    // pad disparado por otro dispositivo
-    if (msg.type === "pad") {
-      executePad(msg.pad, msg.motionX, msg.motionY, msg.gyro)
-    }
-
-    // actualización del contador de usuarios conectados
-    if (msg.type === "users") {
-      setUsers(msg.count)
-    }
+    if (msg.type === "pad")   executePad(msg.pad, msg.motionX, msg.motionY, msg.gyro)
+    if (msg.type === "users") setUsers(msg.count)
   }
 }
 
@@ -396,15 +353,12 @@ function flash(on) {
 // ── EJECUTAR PAD ─────────────────────────────────────────────────
 function executePad(index, mx, my, gy) {
   if (!pdReady) return
-
   pdFloat("motionX", mx)
   pdFloat("motionY", my)
   pdFloat("gyro",    gy)
   pdList("pad", [index, index + 1])
-
   if (index >= 0 && index < 20) { flash(true); setTimeout(() => flash(false), 120) }
   if (index >= 1 && index < 20) { navigator.vibrate?.(80) }
-
   const pads = document.querySelectorAll(".pad")
   pads[index]?.classList.add("active")
   setTimeout(() => pads[index]?.classList.remove("active"), 80)
@@ -416,17 +370,13 @@ const COOLDOWN_MS = 2500
 
 function playPad(index) {
   const ahora = Date.now()
-
   if (ahora - ultimoToque < COOLDOWN_MS) {
-    // mostrar mensaje emergente durante el tiempo de espera
     mostrarToast()
     console.log(`Bloqueado. Faltan ${COOLDOWN_MS - (ahora - ultimoToque)}ms`)
     return
   }
-
   ultimoToque = ahora
   executePad(index, motion.x, motion.y, rotation.gamma)
-
   if (ws?.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({
       type: "pad", pad: index,
@@ -491,7 +441,6 @@ async function initPd() {
   pdReady = true
 
   hideLoader()
-  // el status queda vacío hasta que llegue el primer mensaje "users" del servidor
   setStatus("")
 
   sensorLoop()
