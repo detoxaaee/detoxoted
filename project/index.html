@@ -4,10 +4,19 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>detox</title>
-  
+  <script src="https://unpkg.com/hydra-synth"></script>
   <style>
     html, body { margin:0; padding:0; background:#000; overflow:hidden; touch-action:none; }
-    .wrapper { width:100vw; height:100vh; display:grid; place-items:center; }
+
+    /* la grilla empieza oculta — aparece cuando todo carga */
+    .wrapper {
+      width:100vw; height:100vh;
+      display:grid; place-items:center;
+      opacity: 0;
+      transition: opacity 0.4s ease;
+    }
+    .wrapper.visible { opacity: 1; }
+
     .grid {
       width:95vw; height:70vh;
       display:grid;
@@ -38,8 +47,8 @@
       transform: translate(-50%, -40px);
       color: #00ff88;
       font-size: clamp(14px, 4vmin, 28px);
-      font-family: monospace;       /* necesario para que el ASCII art no se deforme */
-      white-space: pre;             /* respeta espacios y saltos de línea del ASCII art */
+      font-family: monospace;
+      white-space: pre;
       line-height: 1.3;
       letter-spacing: 0.05em;
       text-align: center;
@@ -54,36 +63,50 @@
       transform: translate(-50%, -50%);
     }
 
+    /* Hydra — fondo, z-index más bajo */
+    #hydra-canvas {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      z-index: 10;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.4s ease;
+    }
+    #hydra-canvas.visible { opacity: 1; }
+    #hydra-canvas.hidden  { opacity: 0; }
+
+    /* gif — encima de Hydra, fondo transparente */
     #loader {
       position: fixed;
       top: 0; left: 0;
       width: 100vw; height: 100vh;
-      background: #000;
+      background: transparent;
       display: flex;
       align-items: center;
       justify-content: center;
-      z-index: 100;
+      z-index: 50;
+      pointer-events: none;
+      opacity: 0;
       transition: opacity 0.4s ease;
     }
-    #loader.hidden {
-      opacity: 0;
-      pointer-events: none;
-    }
-    #loader img {
-      width: 80vmin;
-    }
+    #loader.visible { opacity: 1; }
+    #loader.hidden  { opacity: 0; }
+
+    #loader img { width: 80vmin; }
   </style>
 </head>
 <body>
 
 <div id="status">toca para iniciar</div>
 <div id="toast"></div>
-
+<canvas id="hydra-canvas"></canvas>
 <div id="loader">
-  <img src="loading.gif" alt="cargando...">
+  <img src="loading_pepe.png" alt="cargando...">
 </div>
-
-<div class="wrapper"><div class="grid" id="grid"></div></div>
+<div class="wrapper" id="wrapper">
+  <div class="grid" id="grid"></div>
+</div>
 
 <script type="module">
 
@@ -98,23 +121,33 @@ let ws      = null
 let motion   = { x: 0, y: 0 }
 let rotation = { gamma: 0 }
 
-const statusEl = document.getElementById("status")
-const loaderEl = document.getElementById("loader")
-const toastEl  = document.getElementById("toast")
+const statusEl    = document.getElementById("status")
+const loaderEl    = document.getElementById("loader")
+const toastEl     = document.getElementById("toast")
+const hydraCanvas = document.getElementById("hydra-canvas")
+const wrapperEl   = document.getElementById("wrapper")
 
 function smooth(a, b, f=0.15) { return a + (b-a)*f }
 function setUsers(n) { statusEl.textContent = `● ${n}` }
 function setStatus(t) { statusEl.textContent = t }
+
 function hideLoader() {
+  // ocultar Hydra y gif juntos
+  hydraCanvas.classList.remove("visible")
+  hydraCanvas.classList.add("hidden")
+  loaderEl.classList.remove("visible")
   loaderEl.classList.add("hidden")
-  setTimeout(() => loaderEl.style.display = "none", 400)
+
+  // revelar la grilla
+  wrapperEl.classList.add("visible")
+
+  setTimeout(() => {
+    loaderEl.style.display = "none"
+    hydraCanvas.style.display = "none"
+  }, 400)
 }
 
 // ── MENSAJES EMERGENTES ──────────────────────────────────────────
-// Podés mezclar texto plano con ASCII art usando backticks.
-// Para ASCII art, respetá la indentación — cada espacio importa.
-// Mantené los ASCII arts de no más de 12 caracteres de ancho
-// para que no desborden en pantallas chicas.
 const MENSAJES = [
   `𝙙𝙚𝙪𝙙𝙤𝙧𝙚𝙨
    𝙙𝙚
@@ -137,138 +170,44 @@ const MENSAJES = [
 ⠀⠀⠀⠀⠀⣿⠀⠀⠀⠀⠀⠀⠀⠀⡏⠀⠀⠀
 ⠀⠀⠀⠀⠀⠛⠒⠒⠒⠒⠒⠒⠒⠚⠃⠀⠀⠀`,
   `🇻‌🇦‌🇲‌🇴‌🇸‌ 🇲‌🇴‌🇸‌🇸‌🇮‌❗`,
-  `⠀⠀⠀⢀⡴⠋⠉⢉⠍⣉⡉⠉⠉⠉⠓⠲⠶⠤⣄⠀⠀⠀
-⠀⠀⢀⠎⠀⠪⠾⢊⣁⣀⡀⠄⠀⠀⡌⠉⠁⠄⠀⢳⠀⠀
-⠀⣰⠟⣢⣤⣐⠘⠛⣻⠻⠭⠇⠀⢤⡶⠟⠛⠂⠀⢌⢷⡀
-⢸⢈⢸⠠⡶⠬⣉⡉⠁⠀⣠⢄⡀⠀⠳⣄⠑⠚⣏⠁⣪⠇
-⠀⢯⡊⠀⠹⡦⣼⣍⠛⢲⠯⢭⣁⣲⣚⣁⣬⢾⢿⠈⡜⠀
-⠀⠀⠙⡄⠀⠘⢾⡉⠙⡟⠶⢶⣿⣶⣿⣶⣿⣾⣿⠀⡇⠀
-⠀⠀⠀⠙⢦⣤⡠⡙⠲⠧⠀⣠⣇⣨⣏⣽⡹⠽⠏⠀⡇⠀
-⠀⠀⠀⠀⠀⠈⠙⠦⢕⡋⠶⠄⣤⠤⠤⠤⠤⠂⡠⠀⡇⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠑⠒⠦⠤⣄⣀⣀⣀⣠⠔⠁⠀`,
   `🅢🅘🅖🅐🅜🅞🅢 🅕🅔🅢🅣🅔🅙🅐🅝🅓🅞!
 ..🅠🅤🅔 🅝🅞🅢 🅛🅛🅔🅥🅐🅝 🅛🅐
     🅟🅐🅣🅐🅖🅞🅝🅘🅐...`,
-  `⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣠⣤⣶⣶⣶⣶⣶⣤⣄⡀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⣠⣴⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣶⣄⡀⠀⠀⠀⠀⠀
-⠀⠀⠀⣠⣴⣴⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣮⣵⣄⠀⠀⠀
-⠀⠀⢾⣻⣿⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⢿⣿⣿⡀⠀
-⠀⠸⣽⣻⠃⣿⡿⠋⣉⠛⣿⣿⣿⣿⣿⣿⣿⣿⣏⡟⠉⡉⢻⣿⡌⣿⣳⡥⠀
-⠀⢜⣳⡟⢸⣿⣷⣄⣠⣴⣿⣿⣿⣿⣿⣿⣿⣿⣿⣧⣤⣠⣼⣿⣇⢸⢧⢣⠀
-⠀⠨⢳⠇⣸⣿⣿⢿⣿⣿⣿⣿⡿⠿⠿⠿⢿⣿⣿⣿⣿⣿⣿⣿⣿⠀⡟⢆⠀
-⠀⠀⠈⠀⣾⣿⣿⣼⣿⣿⣿⣿⡀⠀⠀⠀⠀⣿⣿⣿⣿⣿⣽⣿⣿⠐⠈⠀⠀
-⠀⢀⣀⣼⣷⣭⣛⣯⡝⠿⢿⣛⣋⣤⣤⣀⣉⣛⣻⡿⢟⣵⣟⣯⣶⣿⣄⡀⠀
-⣴⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷⣶⣶⣶⣾⣶⣶⣴⣾⣿⣿⣿⣿⣿⣿⢿⣿⣿⣧
-⣿⣿⣿⠿⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠿⠿⣿⡿`,
   `...υʂα ҽʂƚα ραɠιɳα 
 αɳƚҽʂ ԃҽ ϙυҽ ʅα
       ƈιҽɾɾҽɳ...`,
-  `⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⡀⠀⣀⣀⠀⠀⠀
-⠀⠀⢰⠋⠙⠲⠖⠒⣲⠃⣠⣝⣏⣁⣈⡆⠀⠀
-⠀⠀⢺⡀⠀⠀⠀⠀⢻⣀⣫⡏⠉⣿⡉⢳⠀⠀
-⠀⠀⡜⠀⠀⠀⠀⠀⠀⠈⠀⠉⠺⣉⡠⢮⠀⠀
-⢀⠤⡧⠀⠀⣀⠀⠀⠀⠀⠀⠀⣀⠀⠠⢼⠒⠂
-⠀⠤⢷⣂⠀⠋⠀⠀⢔⡢⠀⠀⠉⠀⣀⡝⠒⠂
-⠀⠀⠼⠻⢄⣀⠀⠀⠈⠁⠀⠀⢀⣠⠝⠑⠂⠀
-⠀⠀⠀⠀⠀⠈⠉⠉⠛⠛⠋⠉⠉⠀⠀⠀⠀⠀`,
   `      𝚢𝚊 𝚗𝚘 
 𝚝𝚎𝚗𝚎𝚖𝚘𝚜 
    𝚒𝚍𝚎𝚊𝚜
          𝚇𝙳 ༼ つ ◕_◕ ༽つ`,
-  `⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⡀⠀⠀⠀⠀⠀⠄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⡿⠇⠀⠀⠀⠀⢻⡄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⡇⠀⠀⠀⠀⡸⣞⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⠃⠀⠀⠀⢀⣧⢿⣽⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⢴⣿⠆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⠀⠀⠀⠀⣼⣞⡿⣞⡅⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠈⠓⢤⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣾⠀⠀⠀⣰⣟⢾⣽⢫⡿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠙⢦⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⣠⢤⣶⡻⣞⣿⣺⢯⣽⣳⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⢠⣄⡀⠀⠀⠀⠀⠙⢦⡀⠀⠀⠀⠀⣀⣠⣤⣿⣽⣻⢾⣽⣷⣾⣽⣻⣞⣷⣳⡄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠈⢻⣿⣶⣄⡀⠀⠀⠀⣉⣲⣴⢶⣞⡿⣽⣞⡷⣯⢿⡽⣞⣿⠟⠋⠁⠉⠈⠳⣟⣆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⢻⣿⣿⣿⣿⢶⣾⣿⡽⣯⣟⡾⣽⡷⣯⣟⡽⡾⣽⡯⠁⠀⠀⠀⠀⠀⠀⢮⣭⣦⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠉⢞⣿⣿⢯⡿⣿⣯⣟⣷⣯⢿⣳⣟⡷⣽⣼⣻⣽⠀⠀⠀⠀⠀⠀⠀⢀⣼⡯⡗⠋⠤⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⢾⣿⣿⣯⣽⣾⣿⣾⣗⡿⣯⡷⣯⣟⡷⣞⣼⣿⣀⠀⠀⠀⠀⢀⣠⡿⣏⡗⠈⠐⠈⠅⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⢀⣼⠛⠏⠉⠉⠽⢟⢿⣿⣿⣿⣿⣷⣻⢾⡽⣞⡷⠄⡹⣶⢿⣻⢿⣻⡽⢯⣼⢦⠶⠁⠈⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⣸⣯⠇⠀⠀⠀⠀⠀⠁⣽⣿⣿⣿⣷⣯⣿⣽⣛⡦⠀⠀⢩⣿⣹⢯⣷⢻⣟⠺⢣⡖⣘⠤⠓⠀⠀⠀⠀⠀⠀
-⠀⠀⢈⣿⡃⠁⠀⠀⠀⢀⣤⣾⣟⢿⣻⣿⣿⣟⡾⣽⡳⠄⠎⢳⣯⢯⣟⡾⢯⣞⣯⣓⠉⢀⠀⠀⡄⢢⡀⠀⠀⠀
-⠀⠀⣸⣷⣷⣶⣳⣶⣺⣿⣿⣳⢯⣟⣿⣿⣳⢯⠛⠅⠃⠀⠀⣴⣿⡿⣬⢶⠾⠙⣊⣥⠾⡒⠊⢁⢠⠣⣌⠀⠀⠀
-⠀⠀⢺⡽⣾⡽⣯⣟⣿⡿⣯⣿⣿⣾⢿⣿⠳⢏⣈⢠⠀⠀⣰⢿⡿⣽⣉⡶⠌⠋⠉⣀⡀⠁⠀⠀⠀⣘⡐⣂⠀⠀
-⠀⠀⠘⣽⣳⣟⣳⣟⣾⣽⣿⣿⣿⣿⣿⣦⣜⡻⡽⠆⠧⣴⡟⣯⢟⡳⣭⠲⠄⠐⠀⠀⠀⠈⠁⠉⠑⢊⡕⢃⠄⠀
-⠀⠀⠀⠹⣿⣾⣿⣯⣿⣾⣿⣿⣿⣿⣿⣿⣿⣿⣾⢧⠀⠹⠾⡵⡞⡽⢢⣃⠐⠀⠀⠄⡐⠀⠀⠀⡘⢦⠘⣌⠀⠀
-⠀⠀⠀⠐⠹⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⢯⡏⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⠒⡈⠀⡀⠄⡑⠢⣉⠴⣈⣆
-⠀⠀⠀⠀⠀⣀⠻⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⢯⣏⡴⣶⣵⣢⢤⢠⡀⡄⢠⠐⡰⢌⡱⠀⡁⡀⠆⡥⠆⡥⣛⡽⣾
-⠀⠀⡀⠔⠉⠀⠀⢽⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣼⣻⢷⣯⡽⣞⣷⣻⡼⣡⢋⡔⠣⠜⡐⢐⠠⡓⣤⣙⣲⣽⣻⢷
-⠀⠀⠀⠀⠀⠀⠀⠘⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷⡿⣽⣞⣷⣻⡴⣣⢜⡱⣊⡕⣊⠠⡙⡰⣭⢷⣯⣿⢿⠀`,
-`                      𝚝𝚞𝚜 𝚍𝚊𝚝𝚘𝚜 
-𝚎𝚜𝚝𝚊𝚗 
-𝚌𝚘𝚖𝚙𝚛𝚘𝚖𝚎𝚝𝚒𝚍𝚘𝚜`,
-`ᑎO ᑕᖇEᗩᔕ 
-                TOᗪO ᒪO 
-ᑫᑌE ᐯEᔕ`,
-
-`⣿⠿⠿⠛⠛⠛⠛⠻⠿⠿⣿⣿⡿⠿⠿⠟⠛⠛⠛⠋⠛⠿⣿
-⣧⣠⣴⡶⠟⠛⠒⠒⣒⢲⣿⣿⣿⡖⣒⠒⠒⠛⠻⢷⣦⣄⣽
-⣿⣿⣋⣐⡂⠀⢀⠆⠲⣠⣿⣿⣿⣄⣇⣰⣀⣀⣘⢂⣽⣿⣿
-⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠟⣹⣿
-⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠟⣿⡏⣼⣿⣿
-⣿⣿⣿⣿⣿⡟⠿⠿⠿⠿⠿⠿⠿⠿⢛⣛⣡⣾⡿⢰⣿⣿⣿
-⣿⣿⣿⣿⣿⣷⣴⣶⣶⣶⣶⣶⣾⣿⣿⣿⣿⣿⣇⣿⣿⣿⣿`,
-`⠀⠀⠀⠀⠀⠀⠀⢀⣇⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⣼⢻⡀⠀⠀⠀⠀⠀
-⠀⢠⣀⣀⣀⣀⣰⡇⠈⣧⣀⣀⣀⣀⣀
-⠀⠀⠈⠻⢦⡀⠀⠀⠀⠀⢀⣠⠾⠋⠀
-⠀⠀⠀⠀⠀⣹⠃⠀⠀⠀⢿⠁⠀⠀⠀
-⠀⠀⠀⠀⢠⣏⣤⠞⠛⢦⣜⣧⠀⠀⠀
-⠀⠀⠀⠀⠾⠋⠀⠀⠀⠀⠉⠻⡄⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠁⠲⣤⡀⠀⠀⠀
-⠀⠀⠀⠀⢀⣴⣤⡤⠀⠀⠈⠻⣷⡀⠀
-⠀⠀⠀⣴⣿⣿⣏⠀⠀⠀⠀⠀⠹⣿⡆
-⠀⠀⠀⠹⠋⠈⠻⣷⣄⠀⠀⠀⠀⣿⣿
-⠀⠀⠀⠀⠀⠀⠀⠈⠻⣷⣄⠀⢀⣿⣿
-⠀⠀⠀⣴⢶⣤⣀⡀⠀⠈⢻⣷⣾⣿⠏
-⠀⣴⡾⠉⠀⠉⠛⠿⢿⣿⣿⡿⢿⣷⣄
-⠘⠛⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⠋`,
-`lаѓБа 
+  `lаѓБа 
     эl 
-        тэlоfоио
-`,`  ᑎO TE ᒪᗩ 
+        тэlоfоио`,
+  `  ᑎO TE ᒪᗩ 
   ᑭIEᖇᗪᗩᔕ 
 ᑕᗩᗰᑭEOᑎ!`,
-`⠀⠀⠀⠀⠀⠀⠀⢀⣠⣴⣶⡾⠿⠿⠿⢷⣶⣤⡀⢀⣀⡀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⣰⡿⠋⠁⠀⠀⠀⠀⠀⢠⣼⡿⠿⠛⠛⠻⣶⡀⠀
-⠀⠀⠀⠀⠀⢰⣿⠁⠀⠀⠀⠀⠀⠀⣰⣿⠋⠀⠀⠀⠐⠄⠘⣿⡄
-⠀⠀⠀⠀⠀⣾⡇⠀⠀⠀⠀⠀⠀⠀⣿⣇⠀⠀⠀⠀⠀⠀⠀⢸⣷
-⠀⠀⠀⠀⢰⣿⠃⠀⠀⠀⠀⠀⠀⠀⠘⣿⣆⡀⠀⠀⠀⢀⣠⣿⠃
-⠀⠀⠀⢀⣸⣿⣤⣀⠀⠀⠀⠀⠀⠀⠀⠈⠙⠿⢷⣶⣿⣿⠋⠀⠀
-⠀⢀⣾⠿⡟⡛⠛⣿⣿⣶⡿⣿⣿⣷⣶⣄⡀⠀⠀⠀⢸⣿⠀⠀⠀
-⢠⣿⠋⠂⠈⠈⣹⣿⠋⠁⠀⠫⢌⡙⢻⠻⠟⠀⠀⠀⢸⣿⠀⠀⠀
-⣿⡏⠀⠀⠀⣸⣿⠃⠀⠀⠀⠀⠀⠈⠉⠀⠀⠀⠀⠀⠀⣿⡄⠀⠀
-⣿⣇⠁⠀⠀⣿⡏⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⡇⠀⠀
-⠘⣿⣄⡀⠀⣿⣇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⡇⠀⠀
-⠀⠈⠛⠿⠷⣿⣿⣦⡀⠀⠀⠀⠀⠀⠀⣠⣦⠀⠀⠀⢰⣿⠃⠀⠀
-⠀⠀⠀⠀⠀⢸⣿⠻⣿⣦⣤⣀⣀⣤⣾⡿⠃⠀⠀⠀⢸⣿⠀⠀⠀
-⠀⠀⠀⠀⠀⠈⢿⣧⣀⣉⣿⡿⠛⠛⢿⣦⡀⠀⠀⢀⣾⡏⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠙⠛⠛⠋⠀⠀⠀⠈⠻⠿⣷⣾⠿⠟⠀⠀⠀⠀
-⠀⠀⠀⠀⢀⡴⠖⠓⠖⠀⣼⠀⠀⠀⠀⡇⠀⢀⡴⠞⠓⠖⠀⠀⠀
-⠀⠀⠀⠀⠘⠷⠤⣤⣄⠀⣿⠀⠀⠀⢀⡇⠀⠘⠷⠤⣤⣄⠀⠀⠀
-⠀⠀⠀⠀⣆⠀⠀⢀⣽⠀⠸⣇⠀⠀⣼⠃⠀⣄⠀⠀⢀⣿⠀⠀⠀
-⠀⠀⠀⠀⠉⠛⠛⠋⠁⠀⠀⠉⠛⠛⠁⠀⠀⠉⠛⠛⠋⠁⠀⠀⠀`,
-`ᖇOTᗩ Tᑌ TEᒪEᖴOᑎO Y 
-TOᑕᗩ ᑌᑎ ᑎᑌᗰEᖇO Iᗰᑭᗩᖇ`,
- `(っ◔◡◔)っ ♥ 𝒉𝒂𝒄𝒆 𝒍𝒐 𝒒𝒖𝒆 
-                     𝒒𝒖𝒊𝒆𝒓𝒂𝒔 𝒓𝒆𝒚! 
-𝒏𝒐 𝒎𝒆 𝒅𝒆𝒔 𝒃𝒐𝒍𝒂... ♥`,
-``,
-`ㄒㄖ匚á 卩卂丂ㄒㄖ`,
-`█▀▄ █▀▀ ▀█▀ █▀█ ▀▄▀
+  `ᑎO ᑕᖇEᗩᔕ 
+                TOᗪO ᒪO 
+ᑫᑌE ᐯEᔕ`,
+  `█▀▄ █▀▀ ▀█▀ █▀█ ▀▄▀
 █▄▀ ██▄ ░█░ █▄█ █░█`,
-`   ᗪETO᙭ Eᔕ 
+  `   ᗪETO᙭ Eᔕ 
 ᑌᑎᗩ Oᗷᖇᗩ ᗪE
     ᘔOE ᑕOᖇᐯᗩᒪᗩᑎ
 ᖴᖇᗩᑎᑕO TOᖇᗩᒪEᔕ
-    ᗪᗩᑎIEᒪ ᗷEᑎITEᘔ`,`𝒂 𝒎𝒂𝒊𝒌𝒆𝒍 𝒋𝒂𝒄𝒌𝒔𝒐𝒏
+    ᗪᗩᑎIEᒪ ᗷEᑎITEᘔ`,
+  `𝒂 𝒎𝒂𝒊𝒌𝒆𝒍 𝒋𝒂𝒄𝒌𝒔𝒐𝒏
       𝒍𝒐 𝒎𝒂𝒕𝒐 
 𝒍𝒂 𝑪𝑰𝑨`,
+  `ᖇOTᗩ Tᑌ TEᒪEᖴOᑎO Y 
+TOᑕᗩ ᑌᑎ ᑎᑌᗰEᖇO Iᗰᑭᗩᖇ`,
+  `(っ◔◡◔)っ ♥ 𝒉𝒂𝒄𝒆 𝒍𝒐 𝒒𝒖𝒆 
+                     𝒒𝒖𝒊𝒆𝒓𝒂𝒔 𝒓𝒆𝒚! 
+𝒏𝒐 𝒎𝒆 𝒅𝒆𝒔 𝒃𝒐𝒍𝒂... ♥`,
+  `ㄒㄖ匚á 卩卂丂ㄒㄖ`,
+  `                      𝚝𝚞𝚜 𝚍𝚊𝚝𝚘𝚜 
+𝚎𝚜𝚝𝚊𝚗 
+𝚌𝚘𝚖𝚙𝚛𝚘𝚖𝚎𝚝𝚒𝚍𝚘𝚜`,
 ]
 
 let toastTimer = null
@@ -452,10 +391,36 @@ for (let i = 0; i < 20; i++) {
 // ── ARRANQUE ─────────────────────────────────────────────────────
 document.body.addEventListener("pointerdown", async () => {
   setStatus("iniciando...")
+
+  // 1. Hydra arranca primero
+  const hydra = new Hydra({ canvas: hydraCanvas, detectAudio: false })
+
+src(o0)
+shape(50,.34,.18)
+.modulate(noise(4,.1).diff(osc(20,-.01)).scroll(0,0,-.1,0))
+.repeat(.3,.2)
+.kaleid(2)
+.scale([.1,.25,.15,.05])
+.colorama(2)
+.rotate(.5,[.1,-.1])
+.blend(src(o0).pixelate([20,60,40.120],6),.4)
+.out(o0)
+bpm=10
+
+  // 2. pequeña pausa para que Hydra tenga tiempo de renderizar
+  //    antes de mostrar el gif encima
+  await new Promise(r => setTimeout(r, 300))
+
+  // 3. mostrar el gif encima de Hydra
+  hydraCanvas.classList.add("visible")
+  loaderEl.classList.add("visible")
+
+  // 4. arrancar todo lo demás
   await requestPermissions()
   initSensors()
   await initFlash()
   await initPd()
+
 }, { once: true })
 
 </script>
